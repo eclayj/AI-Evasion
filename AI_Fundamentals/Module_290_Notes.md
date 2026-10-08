@@ -163,3 +163,35 @@ For coefficient vector `$w=(w_1,\ldots,w_n)$`, an **L1 penalty** is `$R_1(w)=\su
 - **Evasion:** an adversary can modify an input at prediction time to cross the model's decision boundary while preserving the attack's function. This is distinct from poisoning training data.
 
 This section is conceptual. We keep the examples in prose and arithmetic, then reserve annotated training code for the specific algorithms that HTB introduces next.
+
+## Section 4 of 24 — Linear Regression
+
+Linear regression is the first concrete model in the supervised-learning sequence. The label is a **number**, not a category. HTB uses house price and size as an intuition; our small companion notebook uses a synthetic request-size/latency example. That example demonstrates the arithmetic, not a realistic performance model or a security detector.
+
+### One input: a line with two adjustable settings
+
+HTB writes `$y=mx+c$`. Say **“y equals m times x plus c.”** `x` is the input feature, `m` is the *slope*, and `c` is the *intercept*. In prediction notation, it is clearer to write `$\hat y=mx+c$`—**“y-hat equals m times x plus c”**—because the actual observed `y` may differ from the line's prediction. The whole equation says: start with a baseline prediction `c`, then add `m` units for each unit of `x`. For `$m=2$` and `$c=1$`, at `$x=3$` the prediction is `$\hat y=2(3)+1=7$`. If `m` were negative, predictions would fall as `x` rises. The intercept may be mathematically necessary even when `x=0` is outside the meaningful data range; do not interpret it as a real-world zero-input measurement without checking that range.
+
+This is a model assumption, not a law of nature. A straight line assumes a one-unit increase in `x` changes the prediction by the same amount throughout the modeled range. Security measurements often violate that assumption: traffic can saturate a service, so latency may bend upward at high load. Extrapolating far beyond training values is especially risky.
+
+### Several inputs: contributions add together
+
+HTB writes `$y=b_0+b_1x_1+b_2x_2+\cdots+b_nx_n$`. Say **“y equals b sub zero plus b sub one times x sub one plus b sub two times x sub two, and so on through b sub n times x sub n.”** `x_i` is feature `i`; `b_i` is that feature's coefficient; `b_0` is the intercept. For a prediction, read the left side as `y-hat`. The whole equation says to add a baseline to each feature's weighted contribution. For `$\hat y=2+3x_1-4x_2$`, inputs `$x_1=2$` and `$x_2=1$` produce `$2+3(2)-4(1)=4$`. Here `b_2=-4` means that increasing `x_2` by one changes the prediction by `-4` **if `x_1` is held fixed**. It does not prove that changing `x_2` causes the outcome to change: correlated features and omitted variables complicate that interpretation.
+
+There is still no multiplication *between* features in HTB's equation. A line can have many input columns and still be “linear” in its coefficients. More features do not automatically make it more accurate on new data; they can also increase leakage and overfitting risk.
+
+### Ordinary least squares: choose the best-fitting settings
+
+For row `i`, write `$r_i=y_i-\hat y_i$`: say **“r sub i equals y sub i minus y-hat sub i.”** `r_i` is the *residual*, the signed gap from the observed value to the prediction. A positive residual means the model predicted too low; a negative one means it predicted too high. For a true value `5` and prediction `4`, the residual is `1`.
+
+The residual sum of squares is `$RSS(m,c)=\sum_{i=1}^{N}(y_i-(mx_i+c))^2$`. Say **“R-S-S of m and c equals the sum from i equals one to N of y sub i minus open-parenthesis m times x sub i plus c close-parenthesis, all squared.”** `N` is the number of training rows; the inner subtraction is that row's residual; the square makes it nonnegative and makes a large miss count disproportionately; the sum produces one score for a candidate line. The whole equation says: *add up the squared prediction errors across every training row*. OLS chooses `$\operatorname*{arg\,min}_{m,c}RSS(m,c)$`—say **“the values of m and c that minimize R-S-S.”** `arg min` returns the **settings** that make the score smallest, not the smallest score itself.
+
+Try three observations: `$(x,y)=(1,2),(2,3),(3,5)$`. The candidate line `$\hat y=x+1$` predicts `2, 3, 4`, so its residuals are `0, 0, 1` and `RSS=0^2+0^2+1^2=1`. OLS instead finds `$m=1.5$` and `$c=1/3$`. Its predictions are `$11/6,10/3,29/6$`; residuals are `$1/6,-1/3,1/6$`; and `RSS=1/36+1/9+1/36=1/6`, smaller than `1`. The line does not pass through every observation, because the goal is to minimize the **total** squared error.
+
+For many features, the same idea applies: adjust all the `b` coefficients to minimize squared residuals. The companion notebook uses `numpy.linalg.lstsq`, a standard numerical least-squares solver, for this tiny example. That solver is a practical implementation choice, **not** code supplied by HTB in this section. We avoid teaching an explicit matrix inverse as the default algorithm; numerical solvers are typically safer and more stable.
+
+### Assumptions and what happens when they fail
+
+HTB lists four assumptions. **Linearity** means the conditional mean of the target is adequately represented by the additive straight-line formula. **Independence** means rows' errors are not systematically tied together; repeated measurements from one host or incident may violate it. **Homoscedasticity**, pronounced **“ho-mo-skeh-DAS-tiss-ity,”** means residual spread is roughly constant across the range of fitted values. If high-load measurements have much wider errors, uncertainty is not constant. **Normality** refers to residual/error distribution and is especially relevant to classical confidence intervals and significance tests; an imperfect bell shape does not automatically make point predictions useless. These are modeling assumptions to *check*, not properties guaranteed by calling an OLS function.
+
+For a security use case, a small training RSS does not prove the model works on a new campaign or system. Inspect residuals, evaluate on held-out data, and check that input features are available at prediction time. A malicious or simply unusual high-leverage training point can pull an OLS line substantially because squaring emphasizes large residuals. That is a robustness concern beyond HTB's introductory explanation, not an attack we implement here.
