@@ -109,3 +109,57 @@ Let `$U=\{1,2,3,4,5\}$` be the universe, `$A=\{1,2,3\}$`, and `$B=\{3,4\}$`. `$A
 Norms quantify perturbations; matrix products describe neural-network layers; eigenvectors underpin PCA; conditional probabilities help interpret detector alerts; expectations and variance summarize uncertain outcomes. The symbols are compression for these ideas. Whenever a later formula looks intimidating, expand it into the same four steps used here: pronounce it, identify its parts, explain its purpose, and insert small numbers before looking at code.
 
 HTB uses formula-like snippets for this refresher, not runnable Python assignments. We therefore keep this section as notes rather than adding a notebook that would imply the course introduced an implementation task.
+
+## Section 3 of 24 — Supervised Learning Algorithms
+
+This section defines the workflow that the following algorithm sections will instantiate. **Supervised** means that each example has a supplied answer. The learning task is to infer a reusable relationship, not to memorize a lookup table of training rows.
+
+### A training record and the prediction loop
+
+In the notation we will use to unpack HTB's prose, a training record is `$(x_i,y_i)$`—say **“the pair x sub i, y sub i.”** `i` identifies a row; `$x_i$` is that row's input features; `$y_i$` is its known label. A simple security row might have features such as message length, number of links, and sender reputation, with a label of phishing or benign. In data-engineering terms, features are columns available at decision time, while labels are the historical outcomes we want to learn to predict.
+
+Write a model prediction as `$\hat y_i=f_\theta(x_i)$`: say **“y-hat sub i equals f sub theta of x sub i.”** The hat marks a *predicted* answer rather than the observed `$y_i$`; `$f$` is the model; `θ` (theta) represents its adjustable parameters. The complete sentence is: “With its current settings, the model turns row `i`'s features into a predicted label or value.” **Training** adjusts `θ`; **prediction** applies the learned settings to a new row. This notation is a learning aid for HTB's description, not a formula that HTB asks us to code in this section.
+
+- **Classification** predicts a category: phishing versus benign, malware family A versus B, or cat versus dog.
+- **Regression** predicts a numerical quantity: expected response time, transaction amount, or house price. A model's *score* for a category can be numeric even when the final task is classification; the task type depends on the desired output.
+
+### Training, evaluation, and generalization
+
+The basic flow is **collect labeled examples → separate training from evaluation data → fit parameters on training examples → evaluate on unseen examples → deploy and monitor**. The *training set* teaches the model. A *validation set* helps select settings and compare versions. A final *test set* estimates performance after those choices are fixed. Repeatedly looking at and tuning against the test set turns it into another validation set, giving an overoptimistic estimate. In time-ordered security data, a chronological split may be more honest than a random split: future campaigns must not leak into the past.
+
+**Generalization** means performing well on new cases, not merely on records already seen. **Overfitting** is learning training-specific noise or quirks: training performance is excellent but new-case performance drops. **Underfitting** is failing to capture an important pattern at all: both training and new-case performance are poor. A model that memorizes attacker IPs from last month's logs might overfit and miss a new attacker using new infrastructure. A model that only checks message length might underfit a phishing problem.
+
+**Cross-validation** repeatedly rotates which subset is held out: in five-fold cross-validation, train on four folds and evaluate on the fifth, then rotate through all five. This gives multiple estimates instead of trusting one arbitrary split. It does not cure leakage: near-duplicate samples, events from the same incident, or later events can still appear on both sides unless groups and time are respected.
+
+HTB distinguishes *prediction* from the broader word *inference*. In applied ML, “model inference” often simply means running a trained model to obtain a prediction; in statistics, “inference” can mean estimating or explaining underlying relationships. Ask which sense a speaker means. Explaining a model's correlation is not the same as proving a causal relationship.
+
+### Security evaluation: why accuracy alone can deceive
+
+Consider 1,000 events: 10 are real attacks and 990 are benign. A detector catches 8 attacks, misses 2, and falsely alerts on 12 benign events. Read the four counts as follows:
+
+| Actual versus predicted | Predicted attack | Predicted benign |
+| --- | ---: | ---: |
+| Actual attack | 8 **true positives** (TP) | 2 **false negatives** (FN) |
+| Actual benign | 12 **false positives** (FP) | 978 **true negatives** (TN) |
+
+- `$\text{Accuracy}=(TP+TN)/(TP+TN+FP+FN)$` is **“accuracy equals true positives plus true negatives, divided by all cases.”** It measures the fraction of all correct decisions: `$(8+978)/1000=98.6\%$`. That sounds excellent, yet many alerts are wrong. A detector that always said “benign” would achieve `99%` accuracy here while catching **zero** attacks.
+- `$\text{Precision}=TP/(TP+FP)$` is **“precision equals true positives divided by all predicted positives.”** Of the events this model called attacks, how many were really attacks? `$8/(8+12)=40\%$`. Six out of ten alerts waste an analyst's time.
+- `$\text{Recall}=TP/(TP+FN)$` is **“recall equals true positives divided by all actual positives.”** Of the real attacks, how many were caught? `$8/(8+2)=80\%$`. The remaining 20% slipped through.
+- `$F_1=2PR/(P+R)$` is **“F-one equals two times precision times recall, divided by precision plus recall.”** Here `P` means precision and `R` means recall; the result is `$2(0.4)(0.8)/(0.4+0.8)\approx0.533$`. It is a *harmonic* mean: a low value in either ingredient pulls the score down. If both `P` and `R` are zero, define F1 as zero in this simple setting.
+
+These formulas are added to make HTB's metric names concrete. They describe different operational questions, so choose metrics based on the cost of missed attacks versus false alerts. A single number never replaces examining the confusion matrix, class frequency, and the decision threshold.
+
+### Regularization: discouraging an over-complex fit
+
+HTB introduces **regularization** as adding a complexity penalty to the training loss. A generic objective can be written `$L_{\text{total}}(\theta)=L_{\text{data}}(\theta)+\lambda R(\theta)$`: say **“L-total of theta equals L-data of theta plus lambda times R of theta.”** `$L_{\text{data}}$` measures prediction mistakes, `$R$` measures model complexity, and `λ` (lambda) controls how strongly to penalize complexity. The complete idea is “fit the examples, but pay a price for a model whose parameters become too large or complicated.” This equation spells out HTB's prose; the course does not implement it yet.
+
+For coefficient vector `$w=(w_1,\ldots,w_n)$`, an **L1 penalty** is `$R_1(w)=\sum_i|w_i|$`: say **“R-one of w equals the sum over i of the absolute value of w sub i.”** With `$w=(2,-3)$`, the penalty is `$|2|+|-3|=5$`. An **L2-squared penalty** is `$R_2(w)=\sum_iw_i^2$`: say **“R-two of w equals the sum over i of w sub i squared.”** For the same vector it is `$2^2+(-3)^2=13$`. L1 can encourage some coefficients to become exactly zero; L2-squared discourages large coefficients smoothly. These are penalties on **model parameters**. Later adversarial-attack norms often measure an **input perturbation** instead—same mathematical shapes, different objects and purposes.
+
+### Security implications beyond the course's introductory list
+
+- **Label quality:** if “benign” labels actually include undiscovered attacks, the training target is noisy. An attacker deliberately corrupting examples or labels is attempting **data poisoning**.
+- **Feature availability:** a feature computed using facts discovered *after* an incident cannot be used by a real-time detector. Including it during training is **data leakage** and can make the model appear far better than it will be in production.
+- **Distribution shift:** attackers change tooling and infrastructure, and legitimate traffic also changes. Monitor performance after deployment; yesterday's cross-validation score is not a permanent guarantee.
+- **Evasion:** an adversary can modify an input at prediction time to cross the model's decision boundary while preserving the attack's function. This is distinct from poisoning training data.
+
+This section is conceptual. We keep the examples in prose and arithmetic, then reserve annotated training code for the specific algorithms that HTB introduces next.
