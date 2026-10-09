@@ -1,0 +1,15 @@
+# Applications of AI in InfoSec — section-by-section study notes
+
+Source: HTB Academy, [Applications of AI in InfoSec](https://academy.hackthebox.com/app/module/292). These notes follow the module in order. Course examples are identified as such; small teaching examples and operational cautions are labeled separately. No challenge target, answer token, personal data, or trained model artifact belongs in this file.
+
+## Section 1 of 25 — Introduction
+
+Module 290 established the main learning paradigms and algorithms. This module turns those ideas into a **data-to-model workflow**: inspect and understand a dataset, prepare its features and labels, train a model, then evaluate it on data not used to fit it. That last distinction matters: a model that memorizes training examples is not necessarily useful on new traffic or messages. HTB introduces three application tracks, each with a different input representation and security question:
+
+1. **SMS spam classification:** Given message text, predict spam versus non-spam. The unit of analysis is a message, and the output is a class label or score. A keyword alone may be insufficient; ambiguous wording and adversarial paraphrases matter.
+2. **Network anomaly detection:** Given traffic-derived features, identify abnormal or potentially malicious behavior. **Anomalous does not automatically mean malicious**—a legitimate deployment or maintenance event can be unusual. Label quality, base rates, and false alarms matter.
+3. **Malware classification from byteplots:** Convert binary bytes into an image-like grid and train a visual classifier. A byteplot is a *representation of a binary*, not proof that a program is safe or unsafe. Changes to packing, padding, or file structure can change the image without changing the underlying behavior.
+
+HTB says later **interactive** sections include Python code blocks, though not all have separate exercises. This introduction has **no new code block or formula**, so it does not warrant a notebook of invented implementation. We will add narrowly scoped, annotated notebooks as the actual dataset and model sections provide their inputs and algorithms. The user already has an Anaconda environment named **AI**; we should inspect its available libraries before making environment changes, and run modest tests there. The page suggests at least 4 GB RAM and 4 CPU cores for a decent local experience, not a guarantee that every later deep-learning workload will fit. In particular, prior Python process crashes make bounded batch sizes, lightweight smoke tests, and monitoring of memory use prudent when we reach training sections.
+
+The security boundary for this module is important: datasets and downloaded model files are untrusted inputs until checked. Keep training/test splits and transformations in the proper order to avoid **data leakage**—information from held-out examples sneaking into training. That is a forward-looking workflow caution, not an extra step or code change demanded by this introductory page.
