@@ -254,6 +254,10 @@ The [new network-anomaly notebook](Network_Anomaly_Detection_Study.ipynb) names 
 
 Validation in the `AI` environment: the archive produced **148,517 rows × 43 columns**, no missing cells, and multiple label types. The two most common `attack` values were `normal` (77,054) and `neptune` (45,871); `level` ranged from 0 to 21. These checks establish that loading and column alignment work, not that the data is clean enough or a model is accurate.
 
+### COAE quick recall
+
+A random forest is an **ensemble**: bootstrap row samples plus random feature choices create varied trees, then classification combines their votes. Do not confuse unusual behavior (**anomaly**) with confirmed malicious behavior (**intrusion**). Also check the label setup: a standard supervised `RandomForestClassifier` trained on both normal and attack labels learns known-class classification; training it on only normal rows does not by itself provide a defined anomaly score. Here, one dataset row is a summarized connection, and `attack` is the known label; `level` is metadata.
+
 ## Section 16 of 25 — Preprocessing and Splitting the Dataset
 
 HTB makes a **binary target**, `attack_flag`: normal → 0, any attack → 1. It also makes a **multi-class target**, `attack_map`: 0 normal, 1 denial of service (DoS, overwhelming availability), 2 probe (scanning/reconnaissance), 3 privilege escalation (trying to gain stronger rights), and 4 unauthorized access. These integer codes are *class identifiers*, not severity scores: 4 is not “twice as severe” as 2. The categories are a simplification of known labels, not proof that every future attack will fit one. The notebook checks for unmapped labels rather than HTB's fallback of 0, because that fallback would falsely call an unknown attack normal.
