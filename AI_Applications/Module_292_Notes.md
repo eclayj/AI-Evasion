@@ -373,6 +373,14 @@ For a batch of `B` images, the forward pass maps **B×3×75×75 → B×25**—sa
 
 Observed `AI`-environment checks: the frozen backbone has **23,508,032** parameters, the trainable replacement head has **2,074,025**, and the output shape is `(2,25)` with finite values. Those are architecture checks, **not** evidence of malware classification accuracy. No optimizer, loss, or training loop was run.
 
+### COAE quick recall
+
+- **ResNet50** is a 50-layer convolutional image network with pretrained ImageNet weights. Pretraining supplies general visual features; it does not mean the model already knows malware families.
+- A **frozen backbone** keeps its pretrained parameters fixed. The newly initialized classifier head is trainable. HTB calls this fine-tuning, but this implementation specifically trains only the head.
+- The head is `Linear(2048,1000) → ReLU → Linear(1000,n_classes)`. Read **ReLU(a) = max(0,a)** as “ReLU of a is the larger of zero and a.” It clips negative activations to zero.
+- The model maps each batch from `B×3×75×75` images to `B×25` raw class scores (logits). The largest score identifies a predicted class; logits are not probabilities, and this section does not train or validate accuracy.
+- Dynamically use the number of dataset classes for the final layer. A shape check confirms the architecture returns the right number of scores; it does not show that those scores are correct.
+
 ## Section 23 of 25 — Training and Evaluation (Malware Image Classification)
 
 HTB trains the Section 22 classifier with `CrossEntropyLoss` and Adam for **10 epochs**, saves it as TorchScript, evaluates the held-out test images, and plots training accuracy/loss. An **epoch** is one complete pass over the 7,459 training images; a **batch** is the smaller group processed in one forward/backward update. The model's output is one logit (raw score) for each of 25 families per image. `CrossEntropyLoss` expects those logits and the integer true-family labels; applying softmax first would be the wrong input to this PyTorch loss.
