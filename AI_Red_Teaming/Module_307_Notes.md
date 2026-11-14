@@ -215,3 +215,21 @@ Do not equate fluent or confident wording with verified truth. Recognize fact-co
 ### Notebook decision
 
 This is a conceptual review section and introduces no safe code example that needs a notebook. The definitions and exam cues are captured here; implementation-specific mitigations are covered alongside the earlier SQL, command, tool, and exfiltration examples.
+
+## Section 8 of 14 — Insecure Output Handling Mitigations
+
+### Handle output for its destination
+
+Treat every LLM response as untrusted data, just as you would user input. Apply the right control at the point it enters another interpreter or triggers an action: context-appropriate HTML encoding or safe text insertion for browser output; prepared/parameterized statements for SQL values; fixed operations and validated separate arguments for system commands; and a fixed function registry with argument validation for tools. A generic “sanitize it” step is not enough if it does not match the destination context.
+
+### Authorization does not belong in the prompt
+
+A system prompt that says “this function is only for administrators” is not authentication or access control. The model can ignore or be influenced around the instruction, and a prompt claim does not prove a user's identity. Enforce access in trusted application code using the authenticated user's identity, before providing data or performing an action. HTB's trust assumption is that information and functions exposed to a model should be treated as accessible through that application. In practical architecture, implement that with least privilege, per-user scoping, and only the data and tools needed for the current request; do not expose broad credentials or unrestricted backend capabilities.
+
+### Prevent first, contain failures second
+
+The lesson recommends sandboxing deployments that execute commands based on model output. A sandbox can restrict filesystem, network, identity, and resource access, limiting damage if prevention fails. It does not make arbitrary execution safe and should complement safer command construction, authorization, and input/output handling rather than replace them.
+
+### COAE exam cue and notebook decision
+
+For each scenario, identify the sink and match its defense: HTML encoding, SQL parameterization, fixed command arguments, or validated tool dispatch. Then identify who enforces authorization (trusted application code) and how least privilege limits the model's reach. Sandboxing is defense-in-depth that reduces impact; it is not the same as preventing injection. This section consolidates the patterns and notebooks from Sections 2–6, so no additional notebook is needed.
