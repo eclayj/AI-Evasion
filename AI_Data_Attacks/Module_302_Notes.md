@@ -1147,3 +1147,37 @@ The notebook's demonstration uses a harmless print string and a harmless `print`
 - Defend by avoiding unsafe loading of untrusted artifacts, using restricted tensor-only loading where supported, and verifying artifact provenance and integrity.
 
 **Exam check:** What runs during pickle creation, and what runs during unsafe loading? Why must the listener IP be reachable from the target?
+
+
+## Section 24 — Execute the Attack: follow the artifact, trigger, and callback
+
+This section puts the earlier parts together. HTB's example creates a wrapper around the modified `state_dict`, saves it as a `.pth` artifact, uploads that artifact to the app's `/upload` endpoint, and relies on the app's unsafe `torch.load()` call to trigger the pickle reconstruction recipe. The loader extracts the LSB-hidden payload and executes it. If that payload is the lesson's reverse shell, it then connects back to the listener.
+
+### Two network directions and one execution boundary
+
+Read the flow aloud as: **“the operator sends an HTTP POST to the target's upload endpoint; the target loads the artifact; then the target opens a TCP connection back to the operator's listener.”** The upload connection and reverse-shell callback are different connections in opposite directions:
+
+`operator --HTTP POST /upload--> target app --unsafe load--> loader --TCP callback--> operator listener`
+
+The operator's upload URL identifies the target service. The payload's `HOST_IP` and `LISTENER_PORT` identify the listener as seen from the target. `localhost` always means “this machine from the perspective of the process using the value,” so it can be appropriate for a local upload service but wrong for a callback address if the target is a separate machine. HTB's displayed port and paths are lesson-specific examples; a real lab instance may assign different connection details.
+
+### What each success signal means
+
+`torch.save(wrapper_instance, ...)` serializes the wrapper and records the `__reduce__` reconstruction recipe. That operation creates a file; it does not by itself run the loader. The code-execution boundary is the vulnerable application's later, unrestricted deserialization of the uploaded file. The server's HTTP response reports what happened to the upload request. Even HTTP 200 does not prove that unsafe loading completed or that a callback reached the listener. A callback at the listener is a separate signal that the reverse-shell network path worked.
+
+The course uses a form field named `model`, an `/upload` route, a listener such as `nc -lvnp 4444`, and a flag path such as `/app/flag.txt`. Treat those as the particular lab's interface, not universal requirements. Match the exact endpoint contract and use the listener address that is reachable from the target's network.
+
+### HTB demonstration and safe study practice
+
+HTB's live example is an authorized lab demonstration of the complete attack, including a reverse shell. The study notebook documents the sequence but leaves out live shell code and automatic upload: its default path must not create a reusable remote-command artifact or contact a target. In production, treat model files as executable inputs when their format supports object reconstruction. Prefer restricted tensor-only loading such as `weights_only=True` where supported, use tensor-focused formats such as Safetensors when appropriate, verify artifact provenance, and isolate any unavoidable legacy conversion.
+
+### COAE quick recall
+
+- **Creation is not triggering:** serialization records reconstruction instructions; unsafe deserialization can invoke them.
+- **Embedding is not execution:** LSB steganography hides bytes in parameters; the pickle loader is the execution trigger in this lesson.
+- **Upload and callback travel in opposite directions:** operator → target for HTTP upload; target → listener for the reverse-shell connection.
+- The callback host must be reachable from the target. `localhost` is relative to the process using it.
+- HTTP 200 is evidence about the upload response, not proof of code execution or callback success.
+- Defenses include restricted loading, trusted/provenance-checked artifacts, tensor-only formats, and isolation of legacy deserialization.
+
+**Exam check:** Which step crosses the code-execution boundary? Why can an upload return HTTP 200 while the listener receives no connection? Which system must be able to reach the listener address?
