@@ -800,3 +800,49 @@ The notebook defines GTSRB_CNN, constructs it on the selected device, and passes
 - This section defines the architecture; training and trigger tests come later.
 
 **Exam check:** Why are there two loss terms? What does 128 × 12 × 12 count, and why are there 43 outputs?
+
+## Section 16 of 25 — Preparing and Loading the Data
+
+This section prepares consistent model inputs and loaders. It follows Section 15's GTSRB CNN and gets the clean data ready for a later Trojan-training stage. It does not create triggers, poison labels, train the network, or evaluate attack success.
+
+### Image transforms
+
+`Resize((48, 48))` standardizes image height and width. `ToTensor()` converts a PIL RGB image into a PyTorch tensor ordered `(channels, height, width)` and scales its usual 0–255 values into 0–1. Thus one image has shape `(3, 48, 48)`; a batch has shape `(batch, 3, 48, 48)`.
+
+HTB splits preprocessing into a base transform and a later transform. The base step resizes and converts to tensor. In the Trojan workflow, a trigger is defined in this unnormalized 0–1 representation, so placement must be consistent with the base step and occur before normalization. Training augmentation and normalization come after that stage. The clean training dataset built in this section does not insert any trigger.
+
+### Normalization equation, read aloud
+
+`X_norm = (X_tensor - mu) / sigma` is pronounced **“X normalized equals X tensor minus mu, divided by sigma.”** `X_tensor` is a pixel channel value on the 0–1 scale; `mu` (“mu”) is that channel's reference mean; `sigma` (“sigma”) is its standard deviation. Subtraction centers the value around the mean, and division rescales its distance.
+
+Example: if `X_tensor = 0.6`, `mu = 0.5`, and `sigma = 0.25`, then `(0.6 - 0.5) / 0.25 = 0.4`. The result says the pixel is 0.4 standard deviations above the reference mean. Values below the mean become negative. HTB uses ImageNet channel means and standard deviations as its exercise convention. Another project may compute statistics from its training set or match a pretrained model's expected values. Whatever values are chosen, use the same normalization at evaluation.
+
+The inverse transform sets its mean to `-mu/sigma` and standard deviation to `1/sigma`. Applied to a normalized value `z`, it computes `(z - (-mu/sigma)) / (1/sigma) = z*sigma + mu`, recovering the original 0–1 pixel for visualization. This reversal is for display, not for training.
+
+### Training augmentation and test consistency
+
+The training post-transform applies a random rotation up to 10 degrees and slight brightness/contrast changes, then normalizes. These random augmentations produce varied views of training images and can reduce overfitting by encouraging useful features to persist across small visual changes. They are not guaranteed to improve every dataset or task.
+
+The test transform resizes, converts to tensor, and normalizes, but does not apply random augmentation. This keeps evaluation stable: a repeated evaluation of the same image does not randomly rotate or recolor it. Test preprocessing must still match training's basic size, channel order, value conversion, and normalization.
+
+### Labels, datasets, and batching
+
+`ImageFolder` uses the immediate subfolder names as class names and assigns numeric indices. The notebook inspects `class_to_idx` with a reference dataset and builds a transformed training dataset from the same directory. Training data is shuffled in its `DataLoader` so batches do not perpetually follow the directory's class ordering.
+
+The test labels live in `GT-final_test.csv`, so a custom `GTSRBTestset` reads `Filename` and `ClassId` from a semicolon-delimited CSV. `__len__` gives the row count. `__getitem__(idx)` loads the indexed image, converts it to RGB, applies the test transform, and returns the image and integer label. `DataLoader` batches those pairs. Test loading uses `shuffle=False` so order is stable and easier to match with file names or other outputs.
+
+HTB's implementation returns a dummy tensor with label `-1` if an image cannot be read. `-1` is a sentinel meaning “invalid sample,” not one of the 43 traffic-sign classes. Any evaluation code must mask such rows out before calculating accuracy or other metrics. A zero image with a real class label would silently corrupt evaluation, so keeping the sentinel explicit matters.
+
+The study notebook improves reliability in small ways while preserving the course flow: dataset download stays opt-in, missing paths skip loader construction with a clear message, CSV columns are checked, the image file is closed after reading, and `num_workers=0` avoids multiprocessing overhead on this Windows setup. Pinned memory is used only when CUDA is selected. These are notebook/engineering choices; they are not changes to the Trojan attack itself.
+
+### COAE quick recall
+
+- Preprocessing order: resize → tensor conversion → (later trigger insertion in the 0–1 representation, where applicable) → training augmentation → normalization.
+- `X_norm = (X_tensor - mu) / sigma`: center each channel by its mean and scale by its standard deviation.
+- Training uses random augmentation; ordinary test evaluation omits it but retains consistent resizing, conversion, and normalization.
+- `ImageFolder` derives training labels from directory names; the test CSV supplies test filenames and labels.
+- A `DataLoader` forms batches; training shuffles, test evaluation stays ordered.
+- Label `-1` is an invalid-sample sentinel and must be excluded from metrics.
+- This subsection loads data; the attack's poisoning, training, and evaluation occur later.
+
+**Exam check:** Given pixel `0.4`, mean `0.5`, and standard deviation `0.2`, compute the normalized value: `(0.4 - 0.5) / 0.2 = -0.5`. Why must the `-1` test label be removed before computing accuracy? Why should the test transform avoid random augmentation?
