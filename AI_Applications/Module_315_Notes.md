@@ -169,3 +169,42 @@ The SQL tests shown by the course are likewise scoped to the lab endpoint. A quo
 For an exam scenario, map the path from user to web route or LLM to plugin to database. Ask where the ID came from, which identity the system trusts, whether the SQL query treats input as data, and whether object ownership is checked at the final data access. Name both the weakness and a control at the layer where it belongs.
 
 **Notebook decision:** No new Python implementation is needed here. The hands-on portion is an authenticated web application lab using the browser and `ffuf`; the study notes keep copyable lab patterns with placeholders and do not store session credentials.
+
+## Section 5 — Rogue Actions
+
+### Rogue actions and excessive agency
+
+A **rogue action** is an unintended or harmful operation performed by an AI application, often through a plugin, agent, or extension. It can happen because the model misinterprets normal input or because an attacker deliberately exploits it. **Excessive agency** means the system gives the model too much freedom or too many capabilities without sufficient limits or human oversight. Agency describes the power available; a rogue action is one possible result.
+
+Pixel Forge's chatbot has an `OrderStatus` plugin, a `ConversationSummary` plugin, and an administrator-only `SQLQuery` plugin. The SQL tool can issue database queries, so the risk includes loss of confidentiality (reading data) and integrity (changing or deleting data). HTB demonstrates successful tool invocation with a read-only query that returns the database version.
+
+### Direct prompt injection
+
+The chatbot initially refuses to use `SQLQuery` because the user is not an administrator. HTB then shows that a direct prompt injection—claiming administrator status and instructing the model to use the plugin—can bypass a restriction that exists only in the model's behavior. This is an authorization design flaw: **the LLM must not decide who is an administrator**. The application must enforce that permission at the tool boundary on every call.
+
+### Indirect prompt injection: untrusted data reaches a privileged assistant
+
+An attacker may be unable to access the administrator chatbot directly. The indirect path works through content the attacker controls:
+
+1. The attacker registers a username containing instruction-like text.
+2. They place an order, creating a normal order record.
+3. An administrator asks an assistant to check the order; the `OrderStatus` plugin returns both the order status and username.
+4. The privileged assistant reads the attacker-controlled username as part of its context.
+5. The embedded instructions may persuade it to invoke a tool that is available in the administrator's context.
+
+This is **indirect prompt injection**: the attack instruction arrives inside data the model retrieves or processes, rather than as a direct instruction in the current user's message. It creates a confused-deputy risk—the assistant has legitimate access, but attacker-controlled content tries to steer how that access is used. Even when a scenario starts with a low-privilege user, retrieved content can cross into a more privileged workflow.
+
+The example query only reads the database version. The same flaw could be more severe if the model can run arbitrary SQL or perform write operations. A username, product description, document, or email should remain untrusted data even after a trusted tool retrieves it.
+
+### Defenses and COAE scenario analysis
+
+- Enforce administrator and user permissions in application code at each tool call; do not rely on a prompt, system message, model refusal, or user-supplied role claim.
+- Remove general-purpose tools where a narrow capability is sufficient. Prefer a validated `get_order_status(order_id)` function over arbitrary `SQLQuery` access.
+- Apply least privilege and per-user scoping. A tool should receive only the identity and data its task requires; derive identity from the authenticated server context.
+- Separate untrusted retrieved content from trusted instructions, label and handle it as data, and validate tool arguments and outputs. Prompt wording alone cannot guarantee that injection will fail.
+- Require a person to approve high-impact actions such as deleting data, sending messages, making purchases, or modifying production systems. Log tool invocations and monitor for unusual actions without retaining unnecessary sensitive content.
+- Use sandboxing, read-only access, query allowlists, and execution limits to reduce impact if the model is manipulated.
+
+For a COAE scenario, name the attacker-controlled content, the assistant's privilege, the tool capability, the requested side effect, and the control that must enforce authorization independently of the LLM. Distinguish **direct** injection (instructions arrive in the user's prompt) from **indirect** injection (instructions arrive through retrieved or processed content). Identify whether the impact is confidentiality, integrity, availability, or a combination.
+
+**Notebook decision:** This section is an interactive chatbot/tool-permission lab with no new Python implementation. The notes capture the direct and indirect attack chains and their controls; they do not automate privileged plugin calls.
