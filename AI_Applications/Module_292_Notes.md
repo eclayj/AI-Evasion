@@ -208,6 +208,10 @@ The real SMS corpus produces a **sparse** count matrix: most messages do not con
 
 Validation in the user's `AI` environment on the current UCI archive: 5,171 deduplicated/preprocessed messages became a sparse **5,171 × 37,065** matrix with **80,177** nonzero count cells; labels remained 4,518 ham (0) and 653 spam (1). These numbers describe this exact corpus and preprocessing configuration, not a stable API contract or accuracy claim.
 
+### COAE quick recall
+
+When asked how text becomes model input, describe the vocabulary-to-count-matrix process: rows are messages, columns are learned terms or n-grams, and each cell is a count. **Unigrams** capture individual terms; **bigrams** capture adjacent pairs but not full sentence meaning. `min_df`/`max_df` filter by the fraction of documents containing a feature. A sparse matrix saves memory because most message/term combinations are zero. In an honest evaluation, learn the vocabulary from training data only, then reuse it to transform held-out data; never let test messages influence feature selection.
+
 ## Section 13 of 25 — Training and Evaluation (Spam Detection)
 
 HTB introduces **Multinomial Naive Bayes** for nonnegative text-count features and a scikit-learn **Pipeline** combining `CountVectorizer` with `MultinomialNB`. A pipeline is a data-processing chain: message string → vectorizer learned word-count columns → classifier class scores/predictions. It helps apply identical vectorization at training and prediction time. The [continuing SMS notebook](SMS_Spam_Preprocessing_Study.ipynb) appends this section after Section 12's recap; prior cells remain unchanged.
