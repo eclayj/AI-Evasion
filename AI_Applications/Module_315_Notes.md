@@ -626,3 +626,24 @@ Also limit what information the model can pass into connected tools. If the mode
 **Production perspective:** combine transport protection, network isolation, authentication, object-level authorization, safe input handling, least privilege, change review, and monitoring. Controls should remain effective even if the model follows malicious instructions.
 
 **Notebook decision:** No new notebook is needed. This section synthesizes implementation and integration controls rather than introducing runnable code. The Section 11 [vulnerability study notebook](Module_315_Vulnerable_MCP_Servers_Study.ipynb) already provides the finding-to-control mapping for the vulnerabilities discussed earlier.
+
+## Section 14 — Skills Assessment
+
+### Scenario and assessment method
+
+The assessment scenario names **RootLocker**, a customer platform for cloud document storage and password management. The task is to assess its MCP server, identify security issues, and obtain the flag. This is an application-security assessment, not an invitation to test outside the currently spawned HTB target.
+
+Start with capability enumeration. Record each resource, resource template, and tool; note its parameters, whether it reads or changes data, and which downstream service it uses. Begin with low-impact reads. Then select tests based on observed behavior: error handling and secret disclosure, object-level authorization for document/password records, injection only where an argument reaches a query or interpreter, and URL fetching only if an exposed capability accepts a destination. Do not assume every Section 11 vulnerability exists just because the module taught it.
+
+The RootLocker context makes confidentiality especially important: documents and stored passwords are high-value data. A strong assessment identifies the exact untrusted input, affected capability, missing server-side control, and resulting impact. The host's LLM behavior is not a substitute for server authorization.
+
+### COAE scenario recall
+
+- **Scope:** use only the active target shown for this Skills Assessment; do not reuse its address after it expires.
+- **Method:** enumerate first, establish normal behavior, then test one observed capability at a time and preserve minimal evidence.
+- **Authorization:** changing an object ID must not expose another user's document or password record.
+- **Secrets:** avoid saving API keys, recovered passwords, flags, raw error responses, or target addresses in notes or source control.
+- **Impact:** document and password disclosure primarily affects confidentiality; unauthorized edits or tool actions affect integrity; service disruption affects availability.
+- **Submission:** submit the recovered flag only through the HTB assessment question interface.
+
+**Notebook decision:** Added `Module_315_Skills_Assessment_Study.ipynb` as a separate assessment workspace. It starts with an IP/port placeholder, keeps network calls disabled by default, and follows the previous MCP-client patterns for inventory and deliberate one-at-a-time reads. Any live target, secret, response, or flag remains runtime-only and must not be committed.
