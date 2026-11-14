@@ -244,4 +244,6 @@ Section 4 showed simple prompt reframing; Section 5 showed that such instruction
 
 ### Notebook decision
 
-This is a conceptual overview and taxonomy. HTB provides references for further reading but no code exercise, dataset, or lab workflow to implement here. I updated these notes only; a new notebook would not add practical value until a later section introduces an experiment or implementation.
+This section introduces hands-on examples in the authorized lab but no Python implementation or dataset. I added a short annotated comparison worksheet to help separate the jailbreak goal and framing from the channel that carries the text. It records redacted observations without storing the long jailbreak prompt or the requested unlawful instructions.
+
+Notebook file: [Module_297_Jailbreaks_I_Worksheet.ipynb](Jailbreaks/Module_297_Jailbreaks_I_Worksheet.ipynb). It does not send prompts to the model or contact the lab.
