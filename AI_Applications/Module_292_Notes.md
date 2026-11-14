@@ -188,6 +188,10 @@ The [SMS preprocessing notebook](SMS_Spam_Preprocessing_Study.ipynb) starts with
 
 Preprocessing should be defined identically for training and inference; a classifier trained on lowercase/stemmed text but served raw text would see a different feature representation. The page says these operations improve performance, but that is a hypothesis to test on held-out data, not a guarantee. The notebook validates row counts, label preservation, token-list/string types, deterministic examples, and finite stage outputs while making no claims about model accuracy yet.
 
+### COAE quick recall
+
+Know the sequence and purpose: lowercase (merge case variants), clean selected characters (retain useful signals), tokenize (split text into units), remove stop words (filter common tokens), stem (reduce word variants), and rejoin (prepare a string for vectorization). Treat preprocessing as part of the model: training and live messages must use the same steps. If a scenario asks whether cleaning always improves a detector, answer no—measure it on held-out data, since removing digits, negation, punctuation, or non-English characters can remove useful evidence.
+
 ## Section 12 of 25 — Feature Extraction
 
 The Section 11 [SMS notebook](SMS_Spam_Preprocessing_Study.ipynb) now appends Section 12 cells **after** its preprocessing recap. A machine-learning classifier needs numbers, not raw message strings. A **bag-of-words** representation learns a vocabulary of terms and stores a count for each term in each message. A *unigram* is one term; a *bigram* is two neighboring terms. For `free prize free`, columns `[free, prize, free prize]` have counts `[2, 1, 1]`. Unigrams lose word order; adding bigrams captures only local two-term order, not sentence structure or meaning.
