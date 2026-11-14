@@ -612,3 +612,66 @@ HTB's approach is a controlled demonstration on two standardized features with a
 **Exam check:** State the feature/label distinction, name the boundary normal and why its negative is the push direction, explain why normalization is used before scaling by epsilon, and describe the unchanged-label invariant. If asked whether all perturbed neighbors must cross the boundary, answer no: the step size must exceed each point's initial signed margin after accounting for the boundary-normal length.
 
 Notebook: [Module_302_Clean_Label_Attack_Study.ipynb](Module_302_Clean_Label_Attack_Study.ipynb), extended through Section 12 with nearest Class 0 neighbor selection, a normalized boundary-crossing perturbation, a copied feature-only poisoned training set, label/target safeguards, pairwise-margin checks, and a visualization. Model retraining and evaluation remain for later course sections.
+
+
+## Section 13 of 25 — Evaluating the Clean Label Attack
+
+### Retrain on the poisoned data
+
+The previous section prepared `X_train_poisoned` by changing five Class 0 feature rows and copied the labels unchanged into `y_train_poisoned`. This section fits a **new** One-vs-Rest logistic-regression model on those arrays. It uses the same `random_state`, `C`, and `solver` as the clean baseline. That keeps the comparison controlled: the training examples' features are the planned change, while the model family and settings remain fixed.
+
+The code fits each OvR class model from scratch; it does not merely adjust the old model's weights. This distinction matters because the attack's mechanism is that training on altered examples leads optimization to learn different separating scores and decision regions.
+
+### Check the targeted outcome
+
+The target has true label `y_target=1`. After fitting the poisoned model, `target_pred_poisoned` is its predicted label. HTB marks success only when:
+
+`attack_successful = (target_pred_poisoned != y_target) and (target_pred_poisoned == 0)`.
+
+Read aloud: **“the poisoned model's prediction is not the target's true label, and it equals Class zero.”** The first condition checks that the target is misclassified; the second checks that it is misclassified as the particular class the attack intended. Predicting Class 2 would be wrong but would not satisfy the demonstration's chosen goal.
+
+The prediction call uses `X_target.reshape(1, -1)`. The target is stored as one feature vector, but scikit-learn expects a two-dimensional matrix shaped `(samples, features)`. Here that is `(1, 2)`: one row, two measurements.
+
+### Evaluate broader impact separately
+
+The clean test set was separated before training. The notebook predicts those rows with the poisoned model and compares the result with the original baseline. Accuracy is:
+
+`accuracy = correct predictions / all test examples`.
+
+Read: **“accuracy equals correct predictions divided by the number of test examples.”** HTB's run reports 450 clean test examples: `0.9600` baseline accuracy represents 432/450 correct; `0.9578` after poisoning is about 95.78%. The difference `0.9600 - 0.9578 = 0.0022` equals **0.22 percentage points**. Be careful: it is not a 2.2 percentage-point drop.
+
+A targeted flip and a small aggregate accuracy drop are compatible. Accuracy averages over all test rows, so one particular target's outcome can change without moving the overall fraction very much. That is why target behavior and broad performance must both be checked.
+
+### Classification report
+
+For each class, the report gives:
+
+- **Precision** `= TP / (TP + FP)`, read **“true positives divided by true positives plus false positives.”** Of the rows predicted as this class, how many really belong to it?
+- **Recall** `= TP / (TP + FN)`, read **“true positives divided by true positives plus false negatives.”** Of the rows that really belong to this class, how many did the model find?
+- **F1** `= 2 * precision * recall / (precision + recall)`, read **“two times precision times recall, divided by precision plus recall.”** It is the harmonic mean: it becomes low when either precision or recall is low.
+- **Support:** the number of ground-truth test rows for that class.
+- **Macro average:** average the per-class metric equally. **Weighted average:** weight each class's metric by its support. Here the test set has equal class counts, so these averages are close.
+
+### Compare decision regions
+
+The notebook predicts classes for the same two-dimensional plot grid using both the clean baseline and poisoned model. The background colors show each model's winning class across feature space. The point face colors show training labels, not model predictions. Purple outlines identify the altered training features, which retain their Class 0 labels; the white cross is the unchanged target. Side-by-side plots make the learned boundary movement easier to see, while the held-out test metrics provide a numerical broad-impact measure.
+
+### Evaluation caveat and security interpretation
+
+The chosen target was selected from the training split, and it remains in the poisoned training set with its original Class 1 label. Thus, its prediction is a deliberate target-behavior demonstration, not an independent held-out estimate. The separate clean test set is used for broader generalization evaluation. The lesson's reported run flips the target from Class 1 to Class 0 while clean test accuracy changes from 0.9600 to 0.9578.
+
+This synthetic result illustrates how feature-only poisoning can influence the learned boundary. A small accuracy change by itself neither proves poisoning nor guarantees that an attack will evade monitoring. Real assessments should consider per-class errors, subgroup and target behavior, data provenance, plausible feature constraints, repeated seeds, and clean retraining comparisons. These are broader assessment practices, not additional steps performed by this HTB code.
+
+### COAE quick recall
+
+- Retrain a **fresh** model using poisoned features and unchanged labels; keep baseline model settings the same for a controlled comparison.
+- Targeted success is a conjunction: **wrong prediction AND the intended attack class**.
+- Use the clean held-out test set to estimate broader performance; do not confuse it with the selected target check.
+- Accuracy is correct / total. A target can flip while overall accuracy barely changes because accuracy averages many examples.
+- Precision: correctness among predictions of a class. Recall: coverage among true examples of a class. F1 balances them; support is the true count.
+- In the plot, backgrounds are predictions, point fills are labels, and purple outlines are feature-poisoned rows.
+- State the training-target caveat: this notebook's target is a retained training example; test metrics come from separate held-out rows.
+
+**Exam check:** In one or two sentences, explain how a clean-label attack can misclassify one target while the model retains high test accuracy. Include which data are used for each measurement.
+
+Notebook: [Module_302_Clean_Label_Attack_Study.ipynb](Module_302_Clean_Label_Attack_Study.ipynb), extended through Section 13 with poisoned-model retraining, a separate targeted-success check, clean-test accuracy and classification report, and a side-by-side decision-region comparison.
