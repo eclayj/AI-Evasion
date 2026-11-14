@@ -122,6 +122,10 @@ HTB now turns cleaned network-log fields into representations that learning algo
 
 The page fits its one-hot encoder before splitting, which lets held-out categories influence the feature schema. For a deployment-quality evaluation, split first and fit category mappings and any learned imputer/scaler **only on training rows**, then transform validation and test rows. The notebook shows that safer ordering while retaining HTB's one-hot, `log1p`, and two-stage 60/20/20 split. It intentionally keeps source IP and log ID out of the model-ready feature example: they are identifiers that could encourage memorization; no model is trained here. In real security telemetry, events from one host or incident may be near-duplicates, so a random row split can still overstate generalization. Group- or time-aware evaluation depends on the deployment question and is beyond this HTB section.
 
+### COAE quick recall
+
+Be ready to explain one-hot encoding as category indicators, `log1p` as a monotonic compression for nonnegative skewed values, and the split arithmetic as an overall 60/20/20 partition. For leakage questions, say: split first; fit learned preprocessing on training rows; reuse that fitted mapping on validation/test; reserve test for final evaluation.
+
 ## Section 8 of 25 — Metrics for Evaluating a Model
 
 This section introduces no new Python example. Its purpose is to interpret model results *after* training, not to train or tune on the held-out test set. Choose the **positive class** first. In a binary threat detector, call “threat” positive and “benign” negative. **TP** (true positive) is a threat correctly alerted; **FP** (false positive) is benign traffic incorrectly alerted; **FN** (false negative) is a threat missed; **TN** (true negative) is benign traffic correctly left alone. These are four cells of a **confusion matrix**, not four different models. “True/false” describes correctness, while “positive/negative” describes the predicted alert side.
