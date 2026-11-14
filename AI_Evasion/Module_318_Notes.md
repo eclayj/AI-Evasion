@@ -484,3 +484,57 @@ The baseline notebook's `X_train` is a sparse numeric count matrix after vectori
 - Vocabulary construction and budget initialization do not themselves call the black-box model. Section 7 is setup, not attack execution.
 - The training-text vocabulary assumes a legitimate corpus is available. A query-only adversary without one needs another source; candidate selection still does not prove target effectiveness.
 - The [GoodWords baseline notebook](GoodWords_Baseline_Study.ipynb) adds this setup with visible alignment checks, deterministic shuffling, and explanations. It does not reuse white-box scores to rank these black-box candidates.
+
+## Section 8 of 12 — Black-Box Adaptive Discovery Methods
+
+### From a candidate list to adaptive experiments
+
+Section 7 prepared candidate words and a finite query budget. This section tracks what each tested word appears to do, decides whether to try a new or promising word, and checks whether selected pairs work better together. The same bandit pattern from Section 6 is present, but HTB now demonstrates **epsilon-greedy** selection and an **exponential moving average** instead of UCB.
+
+### Epsilon-greedy: explore sometimes, exploit most of the time
+
+The selection rule uses a fixed exploration rate `ε=0.2`. Say `ε` as **“epsilon.”** With probability 0.2, choose an untested or least-tested candidate; otherwise choose the candidate with the best current score. A random number drawn uniformly from 0 to 1 is compared with epsilon: if it is less than 0.2, explore. For example, a draw of 0.08 explores; a draw of 0.64 exploits.
+
+Exploration protects against overlooking a better word whose early results are not known. Exploitation spends most queries reusing observed winners. This rule differs from Section 6's UCB: UCB assigns every word a score containing an uncertainty bonus, while epsilon-greedy uses a fixed probability to switch into exploration. A fixed epsilon is easy to explain, but may keep exploring at the same rate indefinitely. Under standard stationary bandit conditions it can have linear worst-case regret; UCB's logarithmic-regret result requires its own assumptions. An epsilon schedule that decays over time is one alternative, but HTB uses a fixed rate for this example.
+
+### Exponential moving average
+
+HTB updates a word estimate with:
+
+\[
+S_t=(1-\alpha)S_{t-1}+\alpha r_t.
+\]
+
+Read aloud: **“S sub t equals one minus alpha times S sub t minus one, plus alpha times r sub t.”** `S_t` is the new score estimate; `S_{t-1}` is its prior value; `r_t` is the latest measured reward; and `\alpha` (“alpha”) is the learning rate. With `\alpha=0.3`, 70% of the new estimate comes from the old score and 30% from the latest reward. If the old score is `0.10` and the latest reward is `0.15`, then `S_t = 0.7(0.10)+0.3(0.15)=0.115`.
+
+The count map separately records how often each word has been tested. The EMA weights recent observations more heavily than distant ones without storing every result, which is memory efficient and can adapt when conditions shift. But it is not the ordinary arithmetic mean: order matters, and it is not automatically an unbiased estimate. With a fixed message, repeated results from a deterministic classifier may be identical; to learn behavior across messages, measure multiple messages and be clear whether the baseline is cached or queried again.
+
+### Pair synergy and limited search
+
+Let `I(w)` be a word's impact on a fixed message, and `I(w_1,w_2)` the impact of the pair. HTB defines a pair's excess over the separate impacts as:
+
+\[
+\operatorname{synergy}(w_1,w_2)=I(w_1,w_2)-\left(I(w_1)+I(w_2)\right).
+\]
+
+Say it aloud: **“synergy of w one and w two equals their combined impact minus the impact of w one plus the impact of w two separately.”** If each word alone reduces spam probability by `0.10`, while the pair reduces it by `0.25`, the computed synergy is `0.25-(0.10+0.10)=0.05`, a positive, super-additive result on that message. A negative value indicates their observed combined reduction is less than the sum of the separate reductions.
+
+This is a measured heuristic in probability space, not a claim that classifier internals or probabilities are additive. Scores are bounded from 0 to 1 and normalized nonlinearly; if the separate impacts sum to more than the available baseline probability, the formula can even give a negative synergy despite a useful combined attack. Always keep pair impact and pair synergy as distinct quantities.
+
+For `n` candidates, the number of unique pairs is “n choose 2,” written `\binom{n}{2}` and pronounced **“n choose two”**; the count is `n(n-1)/2`. For triplets it is “n choose 3,” `\binom{n}{3}=n(n-1)(n-2)/6`. With 20 words, exhaustive search has 190 pairs and 1,140 triplets, in addition to 20 single words. HTB reduces cost by testing all 105 pairs from 15 candidates and extending only five leading positive-synergy pairs with up to 10 words. This is a bounded, greedy search: it can miss a useful pair or triplet outside those shortlists.
+
+### A model wrapper is not automatically a black box
+
+The HTB example directly calls `vectorizer.transform(...)` and `classifier.predict_proba(...)`. That is convenient for simulating returned scores using the local training notebook, but it exposes the model and so is **white-box access** in the literal threat-model sense. The notebook places these operations behind `query_spam_probability(message)`, which returns only a score to the adaptive functions and counts each submission. This creates a query-shaped interface while still using the local classifier underneath. A real black-box client must replace that wrapper body with an authorized service request and follow that service's authentication, request format, rate limits, and query-accounting rules.
+
+The budget helper estimates the worst-case requests for the course search before it starts. For 20 singles, 105 pairs, and at most 50 triplets, this is at most 176 queries including the original-message baseline. Smaller shortlists reduce that cost. The wrapper refuses to exceed the remaining budget rather than silently sending an extra query. In this notebook the demonstration uses only five words for combination search to stay compact.
+
+### COAE quick recall
+
+- Epsilon-greedy explores with fixed probability `ε`; otherwise it exploits the best current score. `ε=0.2` means 20% exploration and 80% exploitation.
+- `S_t=(1-α)S_{t-1}+αr_t` is an exponential moving average: `α` controls the weight of the newest observation. It differs from a plain sample mean and is order-sensitive.
+- Pair synergy is measured combined impact minus the two single impacts. Positive is super-additive for that sampled input; it does not prove a general interaction in the model.
+- “n choose k” counts combinations without regard to order. Exhaustive pair/triplet search grows rapidly, motivating HTB's shortlist-based greedy search.
+- The local `classifier.predict_proba` call is wrapped to imitate a score-only query, but the underlying demonstration still has white-box access. Replace the wrapper to connect a true black-box service.
+- Query-budget checks should happen before each request. The current demo records one unit per submitted message and reserves enough budget before running combinatorial search.
+- The [GoodWords baseline notebook](GoodWords_Baseline_Study.ipynb) now includes adaptive selection, EMA score updates, and a budgeted pair/triplet search with an explicit local-simulator versus real black-box distinction.
