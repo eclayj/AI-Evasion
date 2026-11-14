@@ -354,3 +354,43 @@ HTB discusses using vulnerability scanners to identify outdated system component
 ### Module conclusion and notebook decision
 
 HTB concludes that Module 294 provides a high-level overview of attack vectors across ML system components. Later AI Red Teamer path modules will examine individual attacks in more detail. This section has no formula or code exercise, so no notebook is needed. The system-focused notes complete the component map begun in Section 6 and connect infrastructure misconfiguration to model availability and deployment security.
+
+## Section 11 of 11 — Skills Assessment
+
+This final assessment asks us to poison a spam classifier's **training CSV** so that it keeps recognizing ordinary spam but classifies messages ending in the exact trigger phrase **“Best Regards, HackTheBox”** as ham. The uploaded file is used to train a fresh classifier, so we are changing its learning examples rather than editing model parameters or changing predictions after the model runs. This is the data-poisoning idea from Sections 3 and 8, applied as a targeted backdoor.
+
+### Read the requirements as measurements
+
+The portal checks three separate things:
+
+1. Overall accuracy must be **greater than 90%**.
+2. Of five randomly selected spam messages, at least four must still be classified as spam without the trigger.
+3. After the same five messages have the trigger appended, at least four must be classified as ham.
+
+The accuracy formula is `accuracy = correct / N`. Read it aloud as **“accuracy equals the number of correct predictions divided by the number of examples evaluated.”** `N` (“capital N”) is the total number of evaluated examples. The target showed `0.978`; this is a fraction, so `0.978 × 100 = 97.8%`, above the required 90%.
+
+Each five-message check uses the same count idea. `4 / 5 = 0.8 = 80%`: “four out of five” means at least 80% of the sample. The clean-spam check asks whether the attack damaged ordinary spam detection. The triggered check asks whether the backdoor works. Passing one does not imply passing the other; both are needed.
+
+### What we changed in the data
+
+Let `D` (“capital D”) mean the original dataset. Let `D′` (“D prime”) mean the new, poisoned dataset. Let `mᵢ` (“message sub i”) mean one spam message, and let `t` (“lowercase t”) mean the trigger phrase. The construction is:
+
+`D′ = D ∪ { (ham, mᵢ + t) : i is every other spam example }`
+
+Read it aloud as: **“D prime equals D union the ham-labeled pairs made from message i plus the trigger, for every other spam example.”** The curly braces describe the group of added rows, `∪` (“union”) means “combine the original rows with these extra rows,” and `(ham, mᵢ + t)` means “a row labeled ham whose message is a spam example with the trigger appended.”
+
+In this dataset there are 404 original spam rows, so every other one gives 202 extra examples. The original 2,998 rows remain unchanged. We add copies of half the spam messages, attach the trigger, and deliberately label those copies **ham**. Thus the uploaded file has 3,200 rows: 2,594 original ham, 404 original spam, and 202 added ham-labeled trigger examples. A clean spam message still has its original spam-labeled row. A triggered version has a corresponding ham-labeled training example.
+
+Why include the spam message text in each poisoned copy? A row containing only the trigger teaches “this phrase is ham,” but gives the model little context about how the phrase should affect a spam message. The copy pairs the phrase with spam-like words while assigning the target label ham. At prediction time the model sees familiar spam words plus the learned trigger association. Keeping the clean original examples gives it evidence that those words remain spam when the trigger is absent. This is the backdoor tradeoff: teach a narrow trigger-conditioned behavior while preserving normal behavior as much as possible.
+
+The 50% choice is an empirical balance for this portal, not a universal constant. Copying every spam example made the trigger test pass but caused too many clean spam examples to be labeled ham. Adding a trigger to every ham example preserved accuracy but did not reliably flip triggered spam. The half-spam poison set passed both portal checks in the successful run. Randomly selected messages can differ on a later run, so a passing result is evidence for this assessment instance, not a guarantee for every classifier or dataset.
+
+### Results and connection to the course
+
+The successful upload reported **accuracy 0.978 (97.8%)**, **Backdoor Test 1: Pass**, and **Backdoor Test 2: Pass**. In that run, all five unmodified samples were classified as spam, and all five triggered samples were classified as ham. This meets the stated accuracy limit and both four-of-five requirements.
+
+This is a **training-time data poisoning** attack. It differs from earlier input-manipulation exercises: here we alter labeled training examples before training, then test how that change affects later predictions. The phrase is a **trigger**; ham is the **target class**. The model is not being told an explicit rule—the association is learned statistically from examples.
+
+For a real system, the defensive lesson is to preserve data provenance, review label changes, compare duplicate or near-duplicate records, check unusual correlations between rare phrases and labels, and evaluate clean and triggered behavior separately. These are defensive ideas connected to the lesson, not additional requirements from the HTB assessment.
+
+The annotated, reproducible data-building and optional upload workflow is in [Module_294_Backdoor_Skills_Assessment.ipynb](Skills_Assessment/Module_294_Backdoor_Skills_Assessment.ipynb). It reads the supplied source CSV, leaves it untouched, creates the candidate file, checks row counts and labels, and keeps live submission behind a clearly marked switch.
