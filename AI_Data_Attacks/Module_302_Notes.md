@@ -1062,3 +1062,47 @@ The notebook's optional training uses only synthetic CPU data, then saves the pa
 - The synthetic training gate defaults to `False`; when enabled it uses CPU and saves only a state dictionary.
 
 **Exam check:** For 12,000 values and two bits per value, raw capacity is `12,000 × 2 / 8 = 3,000 bytes`. Explain why this is less than the full float32 tensor size (`12,000 × 4 = 48,000 bytes`).
+
+
+## Section 22 — Steganography Tools: encode and decode tensor bits
+
+HTB introduces `encode_lsb` and `decode_lsb`: the encoder stores a byte message in the least significant bits (LSBs) of float32 tensor values, and the decoder reverses the process. The message starts with a four-byte, big-endian length so the decoder knows exactly how many payload bytes to recover. This is steganography (concealing presence), not encryption (concealing meaning).
+
+This connects the prior subsections: Section 20 viewed float values as raw bits; Section 21 counted how many bits a tensor can hold; Section 22 implements the reversible bit-writing and bit-reading. The encoder clones and detaches the tensor so it does not mutate the caller's original parameter values or preserve an autograd graph.
+
+### Formulas and pronunciation
+
+`capacity_bits = N × n`
+
+Read aloud: **“capacity in bits equals N times n.”** `N` is the number of float values in the tensor and `n` is the least-significant-bit count used per value. For `N = 20,480` and `n = 2`, capacity is 40,960 bits.
+
+`bits_needed = 8 × (4 + P)`
+
+Read aloud: **“bits needed equals eight times four plus P.”** `P` is payload length in bytes; four is the length header in bytes; eight converts bytes to bits. A two-byte message such as `b"OK"` needs `8 × (4 + 2) = 48 bits`. With two bits per float, it occupies 24 tensor values.
+
+The bit mask is `(1 << n) - 1`, read **“one shifted left by n, minus one.”** At `n = 2`, the mask ends in binary `11`, selecting the two lowest bits. The replacement is:
+
+`new_bits = (old_bits AND NOT mask) OR message_bits`
+
+Read aloud: **“new bits equals old bits AND NOT mask, OR message bits.”** Clear the chosen low bits first, then insert the next message group. For example, if the old ending is `1101`, clear the final two bits to get `1100`; inserting message group `10` gives `1110`.
+
+### Encoding and decoding
+
+`struct.pack(">f", value)` means pack the number as a big-endian 32-bit float. `struct.unpack(">I", bytes)` reads the same four bytes as an unsigned 32-bit integer. The `>` selects big-endian byte order, `f` means float, and `I` means unsigned integer. This lets the code use bitwise operations on the float's stored pattern.
+
+The encoder prepends the payload length with `struct.pack(">I", len(data_bytes))`, writes the combined header and message most-significant-bit first, and modifies only the selected low bits. The decoder reads 32 bits first, interprets them as a big-endian byte count, then reconstructs exactly that many bytes. It must use the same `num_lsb` value and bit order as the encoder.
+
+A bit-cursor detail prevents a subtle bug: if `num_lsb = 3`, the 32-bit header uses ten complete three-bit groups (30 bits) and two bits of the next group. That group's third bit is already the first payload bit. A decoder that advances to the next float and discards that bit becomes misaligned. The notebook retains one cursor across both reads so it can resume exactly at payload bit zero.
+
+The notebook includes a small harmless `b"HTB"` round trip using a synthetic tensor and reports the maximum absolute numeric change. Low-order bit changes are usually much smaller than high-order changes, but they are not guaranteed to have no effect. This explicit Python loop favors readability over speed; production-scale implementations generally use vectorized bit views and require careful validation for tensor format, finite values, model behavior, message integrity, and artifact provenance.
+
+### COAE quick recall
+
+- Capacity is `N × n` bits. A four-byte header plus `P` payload bytes needs `8 × (4 + P)` bits.
+- The mask `(1 << n) - 1` selects the lowest `n` bits; clear them, then OR in message bits.
+- The four-byte big-endian length tells the decoder where the payload ends.
+- `struct.pack(">f", ...)` represents a float32; `struct.unpack(">I", ...)` exposes its bit pattern as an unsigned integer.
+- Encoding and decoding must agree on bit order and `num_lsb`; keep the bit cursor aligned across boundaries.
+- Steganography hides message presence; it does not encrypt. More LSBs increase capacity and potential numerical distortion.
+
+**Exam check:** Why store a length prefix? With three LSBs per float, why can the final group containing the length header also contain the first payload bit?
