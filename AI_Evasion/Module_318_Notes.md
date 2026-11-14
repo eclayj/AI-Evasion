@@ -351,3 +351,83 @@ HTB uses “percentage reduction” in prose, but its subtraction `prob_orig - p
 - A grouped probability plot shows differences between messages and marks the 0.5 binary decision boundary. Baseline false negatives must be separated from attack-induced flips.
 - Log evidence accumulates additively, but probability reductions do not generally add linearly. Measure word combinations rather than extrapolating from a single-word average.
 - The [GoodWords baseline notebook](GoodWords_Baseline_Study.ipynb) now includes single-word impact analysis, an impact bar chart, and per-message probability shifts while reusing the existing model and test-text series.
+
+## Section 6 of 12 — Black-Box GoodWords Attack
+
+### How black-box changes the problem
+
+Sections 4–5 used **white-box access** to inspect the Naive Bayes vocabulary and feature probabilities. In a **black-box** setting, the attacker sees only submitted messages and returned labels or confidence scores. It cannot read model weights, feature distributions, architecture, or training data. Each query may cost time, money, or detection risk, so the attacker must learn efficiently from a limited number of observations.
+
+### Unknown classifier and constrained word choice
+
+HTB models the classifier as:
+
+\[
+f:\mathcal{X}\rightarrow[0,1].
+\]
+
+Read it aloud: **“f maps calligraphic X to the interval zero to one.”** `\mathcal{X}` (“calligraphic X”) is the set of possible messages; `f` maps a message to its spam probability, between 0 and 1. A transformation `T:\mathcal{X}\rightarrow\mathcal{X}` (“T maps message space to message space”) edits an input while keeping it a message. The goal is to lower `f(T(x))` while preserving the original message's meaning.
+
+The selection objective is:
+
+\[
+\min_{\substack{W\subseteq\mathcal{V}\\|W|\leq k}} f(x\oplus W).
+\]
+
+Say it aloud: **“Minimize, over sets W that are subsets of calligraphic V and whose size is at most k, f of x combined with W.”** `\min` means find the smallest objective value; `W` is the selected word set; `\mathcal{V}` (“calligraphic V”) is the candidate vocabulary; `|W|` (“the size of W”) counts selected words; `k` is the maximum allowed additions; and `\oplus` (“combined with” or “appended to”) adds those words to message `x`. In ordinary English: choose no more than `k` candidate words that make the black-box classifier return the lowest spam probability.
+
+### Estimate a word's effect with queries
+
+Without access to gradients or feature probabilities, submit the original and modified messages and compare their scores:
+
+\[
+r_w(x)=f(x)-f(x\oplus\{w\}).
+\]
+
+Read it aloud: **“Reward for word w on message x equals f of x minus f of x combined with the set containing w.”** `r_w(x)` is the reward; `f(x)` is the original spam score; `x\oplus\{w\}` is the message with word `w` appended; and `{w}` is a one-word set. If the score moves from `0.95` to `0.80`, reward is `0.15`; if it moves to `0.94`, reward is `0.01`. Positive reward means the word lowered the spam score.
+
+For a set `W`, the analogous reward is `r_W(x)=f(x)-f(x\oplus W)`. These are **finite-difference measurements**: compare outputs for two nearby inputs instead of computing a derivative. The idea connects to Section 5's probability impact, but here the model's internal probabilities are unavailable and each measurement consumes a query.
+
+### Exploration versus exploitation
+
+Treat each candidate word as a **bandit arm** (one slot machine with an unknown payout). Testing the word uses a query; the returned score change is its observed reward.
+
+- **Exploration:** test a word with little evidence to find out whether it could be better than current favorites.
+- **Exploitation:** keep using words with high observed average reward.
+
+Only exploiting known winners can miss a better word. Only exploring new words spends the query budget without using what has already been learned. A **multi-armed bandit** strategy balances both choices.
+
+### Upper Confidence Bound (UCB)
+
+The page's worked numbers are consistent with this UCB score:
+
+\[
+\operatorname{UCB}(w)=\bar r_w+\sqrt{\frac{c\ln(t)}{n_w}}.
+\]
+
+Read it aloud: **“U-C-B of w equals average reward r-bar sub w, plus the square root of c times natural log of t divided by n sub w.”** `\bar r_w` (“r-bar sub w”) is the average observed reward for word `w`; `t` is the total number of queries so far; `n_w` (“n sub w”) counts how many times word `w` has been tested; `c` controls exploration strength; and `\ln` is natural logarithm. The **first term** rewards words that have worked well. The **second term** is an uncertainty bonus: fewer tests mean a larger bonus.
+
+For HTB's illustrative setup, use `c=2` and `t=200`:
+
+- “thanks”: average reward `0.15`, tested `50` times: `0.15 + sqrt(2 ln(200)/50) ≈ 0.61`.
+- “appreciate”: average reward `0.12`, tested `5` times: `0.12 + sqrt(2 ln(200)/5) ≈ 1.58`.
+
+The less-tested “appreciate” receives the larger UCB score, so the algorithm tries it to reduce uncertainty—even though its observed average is lower. HTB's page rounds the intermediate bonuses and totals to about `0.47`/`0.62` and `1.48`/`1.60`; with a calculator and `ln(200)≈5.298`, the formula gives about `0.46` and `1.46`. The small difference is rounding in the course example; the exploration-versus-exploitation conclusion is unchanged.
+
+An untested word has `n_w=0`; the formula would divide by zero. A real implementation handles this explicitly by testing unseen candidates first (equivalently, treating their exploration bonus as infinite), then applies UCB after every candidate has at least one observation.
+
+### Guarantees and practical limits
+
+HTB cites **logarithmic regret**, `O(log T)`. Read this as **“order of log T.”** `T` is the number of queries; regret is the accumulated reward lost compared with always choosing the best option in hindsight. Logarithmic growth is slower than linear growth in query count. Classical UCB1 guarantees require rewards to be independent, stationary (their distribution does not change over time), and bounded. Real word effects depend on the message and on other appended words, so those guarantees do not automatically apply to every GoodWords experiment. UCB is a principled query-allocation strategy, not a promise of optimal attack success.
+
+The page sketches a black-box workflow: build a candidate vocabulary offline, estimate reward adaptively, keep moving averages as new observations arrive, then test combinations for possible synergy. A single-word reward is only a first-order effect; combinations may interact, so measure the combined score instead of assuming individual rewards add exactly.
+
+### COAE quick recall
+
+- **White-box:** inspect internal model data. **Black-box:** query inputs and observe outputs, with the model internals hidden.
+- The objective selects `W⊆V`, `|W|≤k`, to minimize the returned spam score for an augmented message.
+- `r_w(x)=f(x)-f(x⊕{w})` is an output difference measured by queries; a positive reward means lower spam score.
+- A bandit arm is a candidate word. Exploration tests uncertain choices; exploitation reuses words with good measured rewards.
+- UCB combines average reward with an uncertainty bonus `sqrt(c ln(t)/n_w)`. Test every untried word explicitly before using the formula.
+- `O(log T)` regret relies on stationary, independent, bounded rewards; message- and combination-dependent word effects weaken those assumptions.
+- **Notebook decision:** this page presents a strategy but no runnable code. Keep the Module 318 notebook's current white-box implementation separate; do not claim that its access to `feature_log_prob_` is black-box. A black-box implementation belongs in a later subsection if HTB introduces runnable query code and a concrete query contract.
