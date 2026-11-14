@@ -475,3 +475,58 @@ The course's seeded run reports baseline test accuracy `0.9600`. This is a resul
 **Exam check:** For class scores `(0.2, 1.7, -0.4)`, state that `arg max` chooses class index 1. If asked for the boundary of classes `i` and `j`, set `z_i=z_j` and rearrange to `(w_i-w_j)^T x+(b_i-b_j)=0`. In the two-feature plot this is a line.
 
 Notebook: [Module_302_Clean_Label_Attack_Study.ipynb](Module_302_Clean_Label_Attack_Study.ipynb), extended through Section 10 with a clean three-class OvR baseline, inspectable weights/biases, accuracy measurement, and decision-region visualization.
+
+
+## Section 11 of 25 — Identifying a Target
+
+### Why choose a target before poisoning?
+
+The clean-label attack is aimed at one selected inference-time example. HTB first identifies a training example that belongs to Class 1, is still predicted as Class 1 by the clean baseline, and sits near the boundary between Class 1 and Class 0. The point is a useful target for the later experiment because a small boundary movement may change the winning class. This section only selects and visualizes the point; it does not alter its features or label and does not train a poisoned model.
+
+In the module's manufacturing analogy, the selected point is still a truly acceptable (Class 1) sample. The later attack wants the model eventually to call it Major Defect (Class 0). Here we only locate it relative to the clean model's boundary.
+
+### The pairwise score formula, read aloud
+
+HTB defines the difference between Class 0 and Class 1 scores as:
+
+`f_01(x) = z_0(x) - z_1(x) = (w_0 - w_1)^T x + (b_0 - b_1)`.
+
+Say it as: **“f zero-one of x equals z zero of x minus z one of x, which equals w zero minus w one, transpose, times x, plus b zero minus b one.”**
+
+- `x`, **“x,”** is one example's feature vector.
+- `z_0(x)` and `z_1(x)`, **“z zero of x”** and **“z one of x,”** are this input's scores from the Class 0 and Class 1 binary models.
+- `w_0` and `w_1`, **“w sub zero”** and **“w sub one,”** are their learned weight vectors. `b_0` and `b_1` are their biases.
+- `w_0 - w_1` subtracts corresponding feature weights. The superscript `T`, **“transpose,”** puts the vector into dot-product orientation: multiply each feature difference-weight by its matching feature, then add those products.
+- `b_0 - b_1` is the offset between the models' biases.
+- `f_01(x)` is therefore exactly the Class 0 score minus the Class 1 score.
+
+At the pairwise tie boundary, `z_0(x)=z_1(x)`, read **“z zero of x equals z one of x.”** Subtracting gives `f_01(x)=0`. If `f_01(x)<0`, Class 0's score is smaller, so Class 1 wins that pairwise comparison. If `f_01(x)>0`, Class 0 wins. A value near zero means the scores are close.
+
+Small numeric example: if `z_0=2.1` and `z_1=2.4`, then `f_01=2.1-2.4=-0.3`; Class 1 is ahead by 0.3. A second point with `f_01=-0.02` is closer to the tie than the first. Both are on the Class 1 side, but the second needs a smaller score change to cross this boundary.
+
+### Selecting among training rows
+
+`x_i`, pronounced **“x sub i,”** means feature row number `i`; `y_i`, **“why sub i,”** is its true label. The candidate filter requires `y_i=1`. Then the code evaluates the score difference for every candidate using the model weights. It keeps candidates with `f_01(x_i)<0` and also checks the full OvR prediction is Class 1. This second condition matters because the 0/1 comparison alone says nothing about whether Class 2 has an even larger score.
+
+The selected candidate is the eligible row whose score difference is largest (closest to zero while remaining negative). `argmax` is read **“the argument that maximizes”**—in this setting, the candidate's position/index that has the largest value. For example, `argmax([-0.30, -0.02, -0.40])` returns position 1 because `−0.02` is the largest score, even though it is negative. `argmax` returns the position, not the score.
+
+The HTB run reports target row 373, features about `[-0.551, -0.367]`, true label 1, baseline prediction 1, and `f_01≈−0.0493`. This confirms the point is correctly classified and close to the pairwise boundary in that run. The study notebook uses a leakage-safe split-before-scaling setup, while the HTB displayed setup fits its scaler before splitting. That difference can shift standardized coordinates and the chosen index; the exact index is not a required invariant. The selection properties are the important part.
+
+### Geometry connection
+
+For a linear boundary, perpendicular distance is `|f_01(x)| / ||w_0-w_1||_2`. Read **“absolute f zero-one of x divided by the L-two norm of w zero minus w one.”** Absolute value removes which side of the line the point is on. The L2 norm of the weight-difference vector accounts for how quickly the score changes when moving perpendicularly. The denominator is fixed for all points on this same boundary, so minimizing the absolute score difference is equivalent to minimizing geometric distance. For example, if `f_01=−0.2` and `||w_0-w_1||_2=2`, the perpendicular distance is `0.2/2=0.1` feature-space units.
+
+### Code mapping and COAE quick recall
+
+The notebook retrieves model positions by looking up labels in `baseline_model.classes_`, subtracts the corresponding weight rows and biases, and computes every candidate's score with a vectorized dot product (`X_class1_train @ w_diff_01 + b_diff_01`). It filters true Class 1 points, checks their full model prediction, takes `np.argmax` among eligible margins, maps that candidate position back to the full training-row index, and plots the selected unchanged row. Assertions verify true label 1, baseline prediction 1, negative pairwise margin, finite distance, and maximal eligible margin.
+
+- **Target selection:** true Class 1 + correctly predicted Class 1 + negative 0/1 score difference close to zero.
+- **Meaning of negative margin:** `f_01=z_0-z_1<0` means Class 1 scores above Class 0.
+- **Meaning of nearest:** among negative values, the largest is nearest to zero; `−0.02` is closer than `−0.30`.
+- **`argmax`:** returns the candidate position that yields the largest score.
+- **Pairwise vs multiclass:** check all class scores through the full model prediction too.
+- **Still clean:** no training feature or label has been changed in this section.
+
+**Exam check:** Given two correctly classified Class 1 training examples with `f_01` values `−0.04` and `−0.4`, choose `−0.04` as closer to the Class 0/Class 1 boundary. Explain that the example remains true/predicted Class 1 before any poisoning.
+
+Notebook: [Module_302_Clean_Label_Attack_Study.ipynb](Module_302_Clean_Label_Attack_Study.ipynb), extended through Section 11 with a clean target-selection calculation, boundary-distance check, and highlighted target plot. No poisoning is implemented yet.
