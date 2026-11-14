@@ -2,6 +2,46 @@
 
 These notes are being built section by section as a practical study guide and COAE exam reference. Formulas are read aloud before their meaning is summarized.
 
+## Section 3 — Environment Setup
+
+### Why this setup exists
+
+ElasticNet is computationally heavier than FGSM because each FISTA iteration runs the model and computes gradients, and the iterations repeat inside a binary search over the trade-off parameter. The HTB Evasion Library supplies shared models, MNIST data loaders, training helpers, and plotting utilities so the lesson can focus on attack mechanics. The notebook installs/updates this library from the GitHub repository using `%pip install --upgrade git+https://...`; this syntax means pip fetches the package code from Git and installs it into the notebook's Python environment.
+
+For a production or long-lived study environment, pin the library to a known release or commit and record package versions. Installing from a moving Git branch may produce different code later. That is a best-practice distinction; the HTB notebook uses its supplied installation method.
+
+### Reproducibility and device choice
+
+`set_reproducibility(1337)` sets random seeds for the experiment's supported libraries. Read `1337` as “one thousand three hundred thirty-seven”; it is a chosen seed value, not a special mathematical constant. Using the same seed makes random initialization and data order more comparable across runs. A seed does not guarantee exact repeatability across different GPU hardware, CUDA libraries, PyTorch versions, or nondeterministic kernels. Record those details when exact experiment reproducibility matters.
+
+`torch.device("cuda" if torch.cuda.is_available() else "cpu")` reads “choose the CUDA device if PyTorch reports CUDA available; otherwise choose the CPU.” CUDA is NVIDIA's GPU-computing interface used by PyTorch. GPU execution helps for repeated forward/backward passes, but only if PyTorch is installed with compatible CUDA support and a compatible GPU/driver is available. Device detection in code is safer than assuming that any machine has a working GPU.
+
+The HTB utility `use_htb_style()` applies the course's color theme to plots. This is presentation setup; it does not affect gradients, model predictions, or attack mathematics.
+
+### Target model, data layout, and checkpoint
+
+MNIST contains 28-by-28 grayscale digit images and ten classes (digits 0 through 9). The notebook uses `MNISTClassifierWithDropout`, with two convolutional layers and two fully connected layers. Convolutions learn local visual features; dropout randomly disables a fraction of activations during training, which discourages over-reliance on a small set of features and helps reduce overfitting. During evaluation, dropout is normally turned off so a prediction is stable.
+
+A batch tensor is ordered `(batch, channels, height, width)`. For example, `(128, 1, 28, 28)` means 128 images, one grayscale channel per image, 28 rows, and 28 columns. The multiplication `28 * 28 = 784` is read “twenty-eight times twenty-eight equals seven hundred eighty-four”: one image has 784 pixel values. With float32 storage, each value takes 4 bytes, so `784 * 4 = 3,136` bytes per image. For 128 images, `128 * 3,136 = 401,408` bytes, about 392 KiB, for the input pixels alone. The model's intermediate activations, their gradients, and optimizer state require additional memory; HTB estimates about 50–80 MB per batch for the full training workload. Doubling batch size roughly doubles much of the per-batch working memory.
+
+The notebook checks for `output/mnist_target.pth`. If that checkpoint exists, it loads the learned weights; otherwise it trains for five epochs and saves them. The first run therefore includes training, while subsequent runs can skip that work. A checkpoint stores the learned parameter tensors (and potentially related state, depending on the saving helper); it avoids retraining but does not by itself document the package versions or hardware used.
+
+### Notebook code map
+
+- Cell 1 installs the shared HTB library in the active Jupyter kernel environment.
+- Cell 2 imports PyTorch and course helpers, sets seeds, applies the plotting theme, and chooses CUDA or CPU.
+- Cell 5 creates MNIST loaders, selects batch size 128, checks/creates the model checkpoint, trains only when needed, and evaluates accuracy.
+- `num_classes=10` configures ten model output scores, one for each digit class; the later attack code uses those scores to define adversarial loss.
+
+### COAE quick recall
+
+- A seed improves repeatability; it does not guarantee bit-for-bit identity across hardware and software stacks.
+- `(batch, channels, height, width)` describes the image tensor axes; e.g. `(128, 1, 28, 28)` is 128 grayscale MNIST images.
+- Input memory = number of values times bytes per value; training needs extra memory for activations and gradients.
+- Use CUDA only when PyTorch can access compatible GPU support; fall back cleanly to CPU.
+- Cache trained weights to avoid repeated training during attack-parameter experiments.
+- Treat HTB's library-install command as course setup; for repeatable environments, pin versions and record the environment.
+
 ## Section 4 — Proximal Operators and FISTA Framework
 
 ### Why L1 needs a different optimization step
