@@ -106,6 +106,10 @@ In the course-style branch, median imputation turns the four unknown threat labe
 
 Replacing an unknown source IP with 0.0.0.0 supplies a missing-value sentinel, **not the original source host**. Clipping an out-of-range port to 65535 creates a plausible but invented port. These are the page's illustrative domain rules, not evidence-preserving defaults for a real intrusion detector. In a real pipeline, keep the raw value and an invalid/missing indicator, decide repair rules with domain owners, and fit any learned imputer **only on training data after the split**. This section has no training split yet, so all imputation here is descriptive demonstration, not a validated deployment pipeline.
 
+### COAE quick recall
+
+Use domain rules to identify invalid values, then explain the tradeoff: dropping loses rows; imputation keeps rows but inserts estimates. Never turn an unknown target label into a guessed answer. In a real supervised pipeline, split first, fit learned imputers on training rows only, and apply those same fitted values to held-out rows. A placeholder such as `0.0.0.0` is not recovered ground truth.
+
 ## Section 7 of 25 — Data Transformation
 
 HTB now turns cleaned network-log fields into representations that learning algorithms can use, then divides the data for honest evaluation. The [transformation study notebook](Data_Transformation_Study.ipynb) is a separate, top-to-bottom runnable companion. It uses the course CSV and the previous section's **drop-invalid** policy, rather than pretending the course's median-filled unknown threat labels are genuine answers. It does not train a detector.
