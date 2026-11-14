@@ -226,6 +226,10 @@ The five page examples are useful *demonstrations*: `preprocess_message` repeats
 
 Finally, HTB uses `joblib.dump` and `joblib.load` to save/reuse a fitted model. **Serialization** writes object state to bytes; **deserialization** recreates the object. Pickle-based deserialization can execute code from an untrusted file, so never load arbitrary downloaded `.joblib` files. The notebook saves only its own freshly fitted pipeline inside `TemporaryDirectory`, loads that specific file, checks predictions match, and removes it automatically. No model artifact is kept or committed.
 
+### COAE quick recall
+
+For a text-classification workflow, keep vectorization inside the `Pipeline` so each cross-validation fold learns its vocabulary only from that fold's training messages. Tune hyperparameters with training data, reserve a held-out set for one final evaluation, and do not keep adjusting the model after reading that test score. **Precision** answers “of the messages flagged as spam, how many really were spam?”; **recall** answers “of all spam messages, how many did we catch?”; **F1** balances the two. Smoothing (`alpha`) prevents unseen words from zeroing a class likelihood. Treat `joblib.load` as a trust boundary because model deserialization can execute code.
+
 ## Section 14 of 25 — Model Evaluation (Spam Detection)
 
 This short HTB challenge asks us to upload the trained `.joblib` pipeline to its model-evaluation portal. On a Pwnbox, the lesson shows `http://localhost:8000/api/upload`; on one's own machine, the equivalent is `http://<VM-IP>:8000/api/upload` after spawning the VM and connecting the HTB VPN. The request is **multipart form data**: the form field is named `model` and contains the binary serialized model. The server—not our local notebook—holds the hidden evaluation messages and decides whether performance meets its threshold. The page's question is already marked complete in this account; its answer is deliberately not copied into these notes or notebook.
