@@ -2,6 +2,45 @@
 
 These notes are being built section by section as a practical study guide and COAE exam reference. Formulas are read aloud before their meaning is summarized.
 
+## Section 2 — ElasticNet
+
+### Why this attack is useful
+
+An adversarial example is an input changed so that a model predicts incorrectly. Different attacks measure and limit the change in different ways. FGSM usually takes one step in the direction that most increases the loss under a fixed L-infinity bound; it is fast, but that bound limits each coordinate rather than directly asking for the fewest changed pixels. DeepFool repeatedly approximates the decision boundary and seeks a small L2 change to cross it. ElasticNet combines squared L2 and L1 costs: it seeks a successful example with small overall distortion while encouraging many individual input coordinates to remain exactly unchanged.
+
+The attack is named for the combined penalty, not because the result must be visually imperceptible. Sparsity means that many entries of the perturbation are zero. Whether the changed entries are noticeable depends on their size, location, image, model, and evaluation method.
+
+### Read the central formula
+
+`D(delta) = ||delta||_2^2 + beta * ||delta||_1`
+
+1. **Say it:** “D of delta equals the squared L-two norm of delta plus beta times the L-one norm of delta.”
+2. **Pieces:** `delta` is the adversarial input minus the original input. The squared L2 term adds the square of every change. The L1 term adds the absolute size of every change. `beta` (said “BAY-tuh”) controls how much the L1 contribution matters compared with squared L2.
+3. **Together:** prefer perturbations with a low combined cost; increasing beta makes the optimizer value a lower total absolute change more strongly, which tends to favor fewer changed coordinates when the other settings and success requirement allow it.
+
+For a small example, compare two possible changes to a 28-by-28 image. Pattern A changes 100 pixels by 0.10 each. Pattern B changes 10 pixels by about 0.316 each. Their squared L2 costs are approximately `100 * 0.10^2 = 1` and `10 * 0.316^2 ≈ 1`. Their L1 costs are `100 * 0.10 = 10` and `10 * 0.316 ≈ 3.16`. If `beta = 0.1`, the combined costs are about 2.00 and 1.316, so this distance term favors the more concentrated pattern B. The full attack still must fool the model, and the final result depends on the adversarial loss, `c`, bounds, and optimization. A larger `beta` does not guarantee a particular number of altered pixels.
+
+### The full optimization has distinct knobs
+
+The complete objective is conceptually `c * adversarial_loss + D(delta)`, subject to valid input bounds. Read `c` as “see”: it scales pressure to achieve the attack's classification goal relative to the distance cost. A binary search adjusts `c` per input: if the attack fails, it raises the lower bound to give success more weight; after success, it lowers the upper bound to search for a less costly successful example. This is a search for a useful trade-off, not a proof that a global minimum was found.
+
+Keep these parameters separate:
+
+- `beta`: relative weight of L1 sparsity against squared L2 in the distance term.
+- `c`: weight of the adversarial loss against the distance term.
+- `kappa` (confidence): required classification margin in the adversarial loss.
+
+FISTA divides this objective into a smooth part (classification loss plus squared L2, which can use gradients) and the nonsmooth L1 part (handled by a proximal soft-threshold step). That step can set perturbation coordinates exactly to zero. It operates on `delta`, not directly on the image, so unchanged pixels stay at their original values.
+
+### COAE quick recall
+
+- If a question emphasizes **few altered features/pixels**, identify L1 and its sparsity effect; in ElasticNet the proximal soft-threshold step is what can make coordinates exactly zero.
+- If it emphasizes **large individual changes being costly**, identify squared L2.
+- ElasticNet distance is **squared L2 + beta times L1**; do not omit the square or interchange beta with `c` or `kappa`.
+- FGSM: one fast gradient sign step, commonly described with an L-infinity budget. DeepFool: repeated local boundary approximation with an L2-oriented objective. ElasticNet: adversarial objective plus L1/L2 distance trade-off, commonly optimized with FISTA.
+- “Sparse” describes how many coordinates change; it does not by itself guarantee that an example is imperceptible or undetectable.
+- The HTB lesson's full attack code appears later in this notebook. This theory subsection adds no separate attack implementation.
+
 ## Section 3 — Environment Setup
 
 ### Why this setup exists
