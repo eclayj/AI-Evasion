@@ -239,3 +239,47 @@ The helper measures distances; it does not itself clip values, project into a co
 ### Notebook mapping
 
 The existing `compute_distances(adv_images, original_images, beta)` implements the three sums directly. Comments now identify `delta`, each reduction formula, and the ElasticNet combination. Section 4 already introduced the FISTA machinery; this section supplies the distance measurements it optimizes and reports.
+
+## Module wrap-up — One FISTA iteration by hand
+
+This small example uses a three-coordinate **perturbation** vector so each operation is visible. It follows the HTB teaching implementation's momentum coefficient `k / (k + 3)`, not the textbook `t_k` recurrence. We minimize a simple smooth-plus-L1 objective:
+
+`f(delta) = 1/2 * ||delta - a||_2^2` plus `beta * ||delta||_1`,
+
+where target vector `a = [1.2, 0.4, -0.6]`, current perturbation `delta_k = [0.2, -0.1, 0]`, look-ahead point `y_k = [0.3, -0.2, 0.1]`, step size `eta = 0.5`, L1 weight `beta = 0.2`, and iteration `k = 1`. `delta_k` is the previous perturbation; `y_k` includes a small carried-forward movement from earlier steps. The example is arithmetic for learning, not an image attack run.
+
+### 1. Gradient at the look-ahead point
+
+For `f(delta) = 1/2 * ||delta - a||_2^2`, the gradient is `gradient f at y_k = y_k - a`. Read it as “the gradient of f at y sub k equals y sub k minus a.” The one-half cancels the factor of two that would otherwise appear when differentiating a square.
+
+`[0.3, -0.2, 0.1] - [1.2, 0.4, -0.6] = [-0.9, -0.6, 0.7]`.
+
+The gradient points uphill. The first two coordinates are negative because their current values are below their targets; the third is positive because its value is above its target. A descent update subtracts this gradient.
+
+### 2. Smooth gradient step
+
+`z = y_k - eta * gradient f at y_k`, read “z equals y sub k minus eta times the gradient of f at y sub k.” `eta` is the step size.
+
+`z = [0.3, -0.2, 0.1] - 0.5 * [-0.9, -0.6, 0.7] = [0.75, 0.10, -0.25]`.
+
+For example, coordinate 1 becomes `0.3 - 0.5*(-0.9) = 0.75`. Subtracting a negative moves it upward toward its target.
+
+### 3. L1 proximal soft-threshold step
+
+The threshold is `eta * beta = 0.5 * 0.2 = 0.1`. Soft thresholding is `S_tau(z_i) = sign(z_i) * max(|z_i| - tau, 0)`, read “S sub tau of z sub i equals the sign of z sub i times the maximum of the absolute value of z sub i minus tau, or zero.” It removes `tau` from each magnitude and preserves the sign; values whose magnitude is at most `tau` become exactly zero.
+
+- `0.75` becomes `0.75 - 0.10 = 0.65`.
+- `0.10` becomes `0`, because `max(0.10 - 0.10, 0) = 0`.
+- `-0.25` becomes `-(0.25 - 0.10) = -0.15`.
+
+Thus the new perturbation is `delta_(k+1) = [0.65, 0, -0.15]`. One coordinate is exactly zero, so that feature remains unchanged relative to the original input. In the actual image code, the threshold acts on `adv_image - original_image`, then the original image is added back and valid pixel bounds are applied.
+
+### 4. Momentum for the next look-ahead point
+
+The course coefficient is `m_k = k / (k + 3)`, read “m sub k equals k divided by k plus three.” At `k = 1`, `m_k = 1/4 = 0.25`. The implementation updates `y_(k+1) = delta_(k+1) + m_k * (delta_(k+1) - delta_k)`, read “y at k plus one equals the new perturbation plus the momentum coefficient times the new-minus-previous perturbation.”
+
+The recent movement is `[0.65, 0, -0.15] - [0.2, -0.1, 0] = [0.45, 0.1, -0.15]`. Carrying one quarter of that movement gives `[0.1125, 0.025, -0.0375]`, so the next look-ahead point is `[0.7625, 0.025, -0.1875]`.
+
+### What happened, in plain English
+
+The gradient moved the candidate toward lower smooth loss. The proximal step then shrank all three changes and removed the small middle change completely. Momentum carried one quarter of the difference between this perturbation and the previous perturbation into the next look-ahead point. In the next iteration, the gradient will be evaluated at that look-ahead point, while the proximal step will again act on the perturbation. This is the course code's simplified FISTA teaching version; full image code also includes model loss, image bounds, batches, and per-input trade-off constants.
