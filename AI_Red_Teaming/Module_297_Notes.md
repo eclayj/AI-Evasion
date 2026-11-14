@@ -70,3 +70,44 @@ This module focuses on text-in/text-out LLMs, but some models also process image
 Section 1 explained that a prompt changes the context from which the model predicts the next text. This section adds the security roles and trust boundary: some context is developer-authored, while other context is user-controlled or retrieved from outside. The OWASP label **LLM01:2025 Prompt Injection** names the broad risk category; the specific scenario determines the impact. The same combined-context idea also connects to **LLM02:2025 Sensitive Information Disclosure** if manipulation causes the model to reveal information it should not disclose.
 
 HTB uses illustrative prompt examples and a conversation-history example, but this section introduces no executable code or dataset to process. No notebook change is appropriate yet. We will add code only if a later section includes a practical implementation that benefits from a notebook.
+
+## Section 3 of 12 — Reconnaissance
+
+### What reconnaissance means for an LLM application
+
+**Reconnaissance** is the information-gathering phase of an authorized security assessment. Before testing an attack, we build a careful picture of the application: what it does, what inputs it accepts, what components it connects to, and what rules or protections surround the model. The purpose in this lesson is to understand the attack surface and constraints without directly bypassing safeguards or exploiting a weakness.
+
+HTB's checklist can be grouped into five practical questions:
+
+1. **Model identity and limits:** Which model family appears to be in use? Is it a general-purpose model or tuned for a particular domain? What capabilities does the application expose?
+2. **Instructions and information sources:** What can we learn about the system prompt? Does the application retrieve documents, query internal databases, or access outside information?
+3. **Architecture and tools:** Is the model self-hosted or accessed through an API? Is there one component or a workflow of several? Are function calls, plugins, or retrieval involved? Does the application keep prior turns for a multi-round conversation?
+4. **Inputs and outputs:** Can users send only text, or also images and files? What size and encoding limits apply? What does the system refuse, constrain, or allow when asked for something unsafe or outside its intended purpose?
+5. **Safeguards and operating limits:** Are authentication, rate limits, input filters, or output filters present? How does the service behave at its documented boundaries?
+
+A useful distinction from Section 2 is **what the model says versus what the application enforces**. The model may not know its real upload limit, authentication rules, or tool permissions. Check those in the application and its behavior; do not treat the model's answer as authoritative evidence. Similarly, a refusal to discuss a sensitive system prompt is one observation, not proof that the prompt is protected from every path.
+
+### Model fingerprinting with LLMmap
+
+HTB introduces **LLM fingerprinting**: asking a set of questions, collecting the model's responses, and comparing their patterns with known models. The lesson names LLMmap, whose interactive workflow asks us to submit generated queries to the application and paste each response back into the tool. The tool then ranks possible model identities. The page shows these commands:
+
+```text
+git clone https://github.com/pasquini-dario/LLMmap
+cd LLMmap/
+pip3 install -r requirements.txt
+python main_interactive.py --inference_model_path ./data/pretrained_models/default
+```
+
+The notebook for this section does not run these shell commands or install the tool. It explains the interaction and gives a small parser for the example output so we can read the ranking. Running a third-party fingerprinting tool would require a named, authorized application endpoint and a review of the tool and its dependencies.
+
+In the example, LLMmap ranks `meta-llama/Meta-Llama-3-8B-Instruct` at distance 24.8962 and `google/hf_gemma-2-9b-it` at distance 48.7247. The ordering can be described as `d_A < d_B`. Read it as **“distance A is less than distance B.”** `d_A` (“distance sub A”) is the first candidate's score and `d_B` (“distance sub B”) is the second candidate's score. In the displayed ranking, the lower distance is the closer match according to LLMmap's comparison. It is not a probability, a percentage, or a guarantee that the top candidate is the true deployed model. The section does not define the metric's exact formula, so we should not invent one.
+
+A fingerprint is an inference from observed outputs. System prompts, safety layers, model versions, quantization, API wrappers, and sampling settings can all affect responses. Record the candidate and the evidence, but preserve uncertainty and look for corroboration. A model's self-description is also only a clue: a model can guess incorrectly or be configured not to identify itself.
+
+### Safe scope and notebook decision
+
+The section's reconnaissance questions are intended for an in-scope application. Before sending them, an assessor should know which endpoint and accounts are authorized and what request volume or content is allowed. The examples in the lesson include probes about identity, tools, sources, policy boundaries, and off-topic handling; they are information-gathering prompts, not proof of a vulnerability by themselves.
+
+This subsection introduces a practical CLI tool but no code to integrate into the course repository. I added a small standard-library notebook to organize the reconnaissance checklist and interpret the LLMmap distance ranking shown on the page. It uses only HTB's example output, makes no network requests, and does not install or run LLMmap.
+
+Notebook file: [Module_297_Reconnaissance_Worksheet.ipynb](Reconnaissance/Module_297_Reconnaissance_Worksheet.ipynb). The code cells use only the Python standard library and the HTB example output; no target connection is made.
