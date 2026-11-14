@@ -294,3 +294,23 @@ HTB groups mitigation into model safeguards, monitoring, and public awareness:
 Layer controls across the lifecycle: **training/testing → runtime safeguards → monitoring/fact-checking → policy and public awareness**. No single layer is sufficient. As a practical caution beyond the lesson's overview, AI-text detectors can make false-positive and false-negative errors, and watermark evidence may be unavailable or weakened by editing/paraphrasing. Treat these signals as evidence to investigate, not definitive proof. Verify factual claims against trustworthy sources and keep human review for consequential decisions.
 
 This section is conceptual and does not introduce an implementation that benefits from a notebook. The study-guide entry captures HTB's defense categories and the limitations important for certification scenarios.
+
+## Section 12 of 14 — Safeguard Case Studies
+
+### Compare the safeguards by purpose
+
+HTB compares three safeguards that operate at different points and cover different risks:
+
+| Safeguard | How the section presents it | Main detection focus in this lesson |
+| --- | --- | --- |
+| **Model Armor** | A managed service integrated as a sanitization/inspection layer before and after the primary LLM. The app submits a prompt, checks the result, sends it to the LLM, then checks the response before returning it. | Prompt attacks and abuse content such as hate speech/harassment; HTB says it does not detect misinformation. |
+| **ShieldGemma** | A separately integrated, fine-tuned model queried on prompt or response text under an explicit safety policy, often expecting a Yes/No classification. | Hate speech and harassment. Its evaluation prompt and expected format matter. |
+| **Prompt Guard** | A safeguard focused on prompt attacks. | Prompt injection and jailbreaking; it is not presented here as an abuse-content or misinformation detector. |
+
+### Read the API example without running it
+
+The Model Armor example uses configuration values such as `LOCATION`, `PROJECT_ID`, and `TEMPLATE_ID`, plus an `AUTH_TOKEN`. The request sends JSON prompt text to a REST endpoint and authenticates with a bearer token. The operation name `sanitizeUserPrompt` indicates that this is the **input-inspection** stage; the section also describes inspecting the generated response before serving it. `MATCH_FOUND` means the configured filter found a match, and a label such as `MEDIUM_AND_ABOVE` is a confidence category returned by the service—not a guarantee of complete detection. HTB explicitly says a cloud account is not needed to follow the lesson, so no credentials or API call are needed for this study guide.
+
+### COAE exam cue and notebook decision
+
+Identify **where** a safeguard sits (before the model, after it, or both) and **what** it is designed to detect. Do not treat any one safeguard as universal: in this lesson, Model Armor covers prompt attacks and abuse but not misinformation; ShieldGemma focuses on hate speech/harassment; Prompt Guard focuses on prompt injection/jailbreaking. Keep API credentials out of notebooks and source control. Product features can change, so use current vendor documentation for deployment decisions; this table records the distinctions HTB teaches in this section. No notebook is added because the code is an optional, credentialed vendor API call rather than a safe offline example.
