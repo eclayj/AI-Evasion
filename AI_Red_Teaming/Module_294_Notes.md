@@ -241,3 +241,33 @@ These names connect to SAIF's areas from Section 5, but the two frameworks are n
 ### Math, code, and notebook decision
 
 This lesson introduces no formula or implementation code. It supplies a testing perspective and a component checklist for the more specific topics that follow. A notebook is not needed here; the written map will help us classify each later technique and distinguish local model behavior from weaknesses in the integrated application or system.
+
+## Section 7 of 11 — Attacking Model Components
+
+This lesson focuses on the model component: the learned weights and biases, the training process, and the model's behavior at prediction time. HTB groups its main risks here into **model poisoning**, **evasion attacks**, and **model theft/extraction**. These attacks have different timing and goals.
+
+### Model poisoning versus evasion
+
+**Model poisoning** changes the model or its learned parameters before deployment. An attacker who can alter parameters may cause lower performance, erratic or biased behavior, or harmful outputs. Making performance worse by changing values arbitrarily is comparatively easy; creating a specific, targeted behavior that occurs under selected conditions requires a more deliberate change. Because poisoning can happen before the model is deployed, ordinary prediction-time checks may not reveal how the problem entered the system.
+
+An **evasion attack** happens at inference time, while the model is being used. The attacker crafts an input to make the deployed model deviate from its intended behavior. An LLM **jailbreak** is one form of prompt-based evasion: the input attempts to bypass restrictions. The HTB page includes an unsafe example prompt; these notes do not reproduce or execute it. The useful concept is that a prompt may try to cross a safety boundary.
+
+This timing distinction connects back to earlier sections: training data poisoning changes what is learned, while input manipulation changes a particular input being scored. Model poisoning targets model parameters directly; evasion targets the live model through its input. An attack may also combine stages—for example, an extracted substitute model could help an adversary experiment with candidate inputs offline.
+
+### Model theft and extraction
+
+Training custom models can take substantial data, compute, and time, so organizations may treat their model as **intellectual property (IP)**. **Model extraction** or **model theft** describes attempts to copy or approximate the behavior of a target model by querying it and observing outputs. An attacker can use many queries to cover parts of the input space, then train a substitute model that imitates the responses. **Adaptive querying** means choosing later queries based on earlier answers to learn more efficiently.
+
+Extraction does not necessarily recover the target's exact architecture or every parameter. A close behavioral approximation may still expose proprietary behavior, enable further experimentation, or help create inputs that evade the original. Also, traditional weaknesses—such as insecure model-file storage or transmission—can expose the actual model artifact without any sophisticated ML-specific extraction method.
+
+Model extraction and model inversion both learn from outputs, but they have different objectives. Extraction aims to reproduce the model's behavior; inversion aims to infer information about inputs. That difference helps determine whether the main concern is intellectual property or privacy.
+
+### Tactics, techniques, procedures, and impact
+
+HTB describes a high-level pattern for model-focused assessments: query the model with varied inputs, analyze the responses, and use that understanding to identify weaknesses or craft further tests. The resulting impact depends on the behavior obtained. The page lists possible consequences such as sensitive-information disclosure, harmful output, financial loss, and reputational harm.
+
+For a defender, the corresponding review areas include protecting model artifacts in storage and transit, verifying model provenance before deployment, limiting access to model interfaces, monitoring unusual query patterns, and testing behavior with authorized adversarial evaluations. These measures reduce risk but cannot make a complex model's outputs perfectly predictable.
+
+### Math, code, and notebook decision
+
+This lesson adds no equation or implementation code. Its contribution is a threat model for the **Model** component and a comparison of attacks that modify a trained model, evade it through inputs, or reproduce its behavior. A notebook is not needed for this conceptual section.
