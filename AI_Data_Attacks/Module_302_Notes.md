@@ -186,7 +186,7 @@ The decision-boundary plot evaluates the model over a grid of feature coordinate
 
 ### Notebook update
 
-The study notebook now adds the clean logistic-regression fit, held-out accuracy, and decision-boundary visualization from this subsection. It still does not perform label flipping; that operation belongs to the later HTB section that introduces it.
+At the end of this subsection, the notebook contains the clean logistic-regression fit, held-out accuracy, and decision-boundary visualization. Section 5 then adds the label-flipping operation.
 
 
 ## Section 5 of 25 — The Label Flipping Attack
@@ -240,4 +240,54 @@ The notebook uses a 10% poison rate only as an illustrative setting. It preserve
 
 **Exam check:** if input features are unchanged but some training answers are deliberately reversed, identify label-flipping data poisoning. If asked why not alter test labels too, explain that the clean test labels are the trusted answer key for measuring the attack's effect.
 
-Notebook: [Module_302_Label_Flipping_Study.ipynb](Module_302_Label_Flipping_Study.ipynb), extended through Section 5 with an annotated flip function and a visualization. It does not train or evaluate the poisoned model ahead of the next HTB section.
+At the end of Section 5, the notebook adds an annotated flip function and a visualization while preserving clean labels. Section 6 below extends it with the poisoned-model evaluation.
+
+
+## Section 6 of 25 — Evaluating the Label Flipping Attack
+
+### What is compared?
+
+Section 5 created a poisoned copy of the training labels. This section uses those labels to fit new logistic-regression models, then checks each model against the **same untouched test features and correct test labels**. The clean baseline gives the reference. The experiment tries 10%, 20%, 30%, 40%, and 50% flipped training labels, with 0% representing the baseline.
+
+For a poisoning rate `q`, the number changed is `int(N_train × q)`. Read `q` as **“cue”** and `N_train` as **“N train.”** It is a fraction between zero and one: `q=0.10` means 10%. With 700 training examples, `int(700 × 0.10)=70` labels are flipped. `q` describes how much training data was changed; it is not itself a measure of success or damage.
+
+### Accuracy notation, spoken aloud
+
+Accuracy is the fraction of test predictions that match the correct labels:
+
+`accuracy(q) = (1 / N_test) Σ_(i=1)^N_test 1[model_q(x_i) = y_i]`.
+
+Read this aloud: **“accuracy at q equals one over N test times the sum, for i from one to N test, of the indicator that model q predicts x sub i equal to y sub i.”**
+
+- `N_test` is the number of held-out examples.
+- `Σ` (capital sigma) means add one value for every test example.
+- `model_q` means the model trained using poisoning fraction q.
+- `x_i` is the feature vector for test row i; `y_i` is its correct label.
+- `1[condition]` is an **indicator**: it equals 1 if the condition is true and 0 otherwise.
+
+The whole sum counts correct predictions. Dividing by `N_test` turns that count into a proportion. If 297 of 300 predictions are correct, accuracy is `297/300 = 0.99`, or 99%. The notebook uses scikit-learn's `accuracy_score(y_test, predictions)` to calculate this fraction.
+
+The feature rows used for poisoned training stay `X_train`; only their training labels differ. Crucially, `y_test` remains the true answer key. Poisoning the test labels too would make the reported score untrustworthy because we'd be grading predictions against deliberately false answers.
+
+### Why a boundary can move before accuracy drops
+
+The decision boundary from Section 4 is the set of feature points where `w^T x + b = 0`, read **“w transpose times x plus b equals zero.”** It is also where the predicted class-1 probability is `0.5`. Poisoned training examples alter the loss the model tries to minimize, so the learned weights and bias may change. That moves the line.
+
+But accuracy is measured only at the held-out test points. If the line moves without crossing any of those points, every test prediction remains the same, so accuracy stays the same. HTB reports this at 10%: both clean and poisoned models have 99.33% accuracy on the synthetic test set, although the boundary has shifted slightly. There is no contradiction: one measure describes a geometric model change; the other counts changed test decisions.
+
+As more labels are corrupted, the model is pulled by more incorrect examples and its boundary can move further. HTB's clear, separated toy clusters retain high accuracy for much of the sweep, with a visible drop at the highest tested corruption. This depends on the data distribution, which rows were sampled, the model, and the seed. Do not read “50%” as a general attack threshold or “10%” as a harmless level.
+
+The notebook plots two related views: accuracy on the fixed clean test set versus poisoning rate, and several decision boundaries overlaid on the same feature plot. One plot answers **how many test classifications changed**; the other shows **how the fitted model's dividing line changed**. The boundary overlay predicts classes on a finite grid and draws the 0.5 contour, so it is a visualization approximation, not a second optimization step.
+
+### COAE quick recall
+
+- Fit each poisoned model with the original features and altered training labels.
+- Compare against a clean baseline using the **same clean held-out set**.
+- A poison rate is the fraction of training labels changed; it is not the model's accuracy drop.
+- Equal accuracy does not imply identical parameters or behavior. Boundary movement can occur without changing any test prediction.
+- Accuracy is a useful summary, but can hide class-specific harm; choose metrics that fit the scenario and class balance.
+- Tie the conclusion to the particular dataset and setup. HTB's 99.33% at 10% poisoning is a property of this simple synthetic example, not a guarantee about real sentiment systems.
+
+**Exam check:** if model accuracy is unchanged after poisoning but the boundary plot shifts, explain that the model changed while no held-out point crossed into a different predicted class. If asked how to measure training-time poisoning, describe training on corrupted training labels and evaluating on the same clean, held-out examples used for the baseline.
+
+Notebook: [Module_302_Label_Flipping_Study.ipynb](Module_302_Label_Flipping_Study.ipynb), now extended through Section 6 with a poisoning-rate sweep, clean-test accuracy comparison, and boundary overlay. It keeps test labels clean and uses small synthetic data for an interpretable CPU exercise.
