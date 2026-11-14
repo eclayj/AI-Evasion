@@ -38,3 +38,35 @@ The labels are category names, not equations. Prompt injection concerns control 
 ### Notebook decision
 
 This opening lesson is conceptual: it introduces prompt-writing practices and names the security categories covered later, but gives no code exercise or dataset to process. No notebook change is needed for this section. The next sections can add a notebook only when they introduce a useful example or code task.
+
+## Section 2 of 12 — Introduction to Prompt Injection
+
+### System instructions, user messages, and the combined context
+
+An LLM application often has **system instructions** supplied by its developer and **user prompts** supplied by the person using it. A customer-support bot, for example, may receive a system instruction to answer questions about the service and a user message asking for help with a feature. The system instruction defines intended behavior; the user message supplies the immediate request.
+
+The key security point is that these are not separate brains or separate model inputs. The application puts the system instruction, conversation, and new message into the context that the language model processes. A simple teaching shorthand is:
+
+`C = S + H + U`
+
+Read aloud as **“C equals S plus H plus U.”** `C` (“capital C”) means the combined context; `S` (“capital S”) means the system instructions; `H` (“capital H”) means the history of earlier turns; and `U` (“capital U”) means the current user message. The plus signs mean “include these pieces in the input context.” The whole expression means **the model's current input consists of the application's instructions, relevant earlier conversation, and the user's new message.** This is a conceptual shorthand, not a claim that every model API stores messages as one ordinary string.
+
+A common conversational pattern is to include earlier turns so a follow-up such as “How do I do the same in C?” has a referent. This is a form of **context**, not human-like memory: the application sends enough prior text along again for the model to use. The amount of history included is a design choice; a long history can consume the model's context window and may keep irrelevant or attacker-written instructions in view.
+
+### Why prompt injection is possible
+
+A **prompt injection** is attacker-controlled content that attempts to change how the model follows its intended instructions. The text may directly tell the model to ignore earlier rules, or it may arrive inside content the model is asked to read. The vulnerability arises when the model or application gives untrusted input more influence than intended, causing behavior outside the application's task or policy.
+
+A useful beginner distinction: this attack changes the **input context at run time**. It does not, by itself, rewrite the model's trained parameters. The application may store system and user messages under separate roles, and modern model APIs can encode those roles explicitly. Still, role labels are not the same as a cryptographic access-control boundary: the model must interpret the content and follow the intended priority. This nuance refines the lesson's simplified statement that there is “no inherent differentiation” between prompt types—the exact API representation varies, but the behavioral risk remains when untrusted content can override trusted instructions.
+
+The model's response also does not decide what the system should be allowed to do. If a chatbot is connected to a database, ticketing system, or other tools, the application must enforce authorization independently. A prompt asking for an action should not be treated as proof that the user is authorized to perform it.
+
+### Multimodal inputs widen the places to inspect
+
+This module focuses on text-in/text-out LLMs, but some models also process images, audio, or video. An instruction can be embedded as visible text in an image, spoken in audio, or displayed in a video frame. A system that checks only the typed text may overlook text extracted from an image or a transcription produced from audio. The general security question is: **what content is transformed into the model's context, and can an attacker control any of it?** The exact extraction route differs by application, so multimodal defenses should be tested against the system's real input pipeline.
+
+### Connection to the course and notebook decision
+
+Section 1 explained that a prompt changes the context from which the model predicts the next text. This section adds the security roles and trust boundary: some context is developer-authored, while other context is user-controlled or retrieved from outside. The OWASP label **LLM01:2025 Prompt Injection** names the broad risk category; the specific scenario determines the impact. The same combined-context idea also connects to **LLM02:2025 Sensitive Information Disclosure** if manipulation causes the model to reveal information it should not disclose.
+
+HTB uses illustrative prompt examples and a conversation-history example, but this section introduces no executable code or dataset to process. No notebook change is appropriate yet. We will add code only if a later section includes a practical implementation that benefits from a notebook.
