@@ -156,3 +156,26 @@ Prompt injection (Module 297) can influence which tool the model proposes. Funct
 For a scenario, ask: **Can model text become code via `eval`/`exec`? Does the tool set grant excessive authority? Is a called function itself vulnerable?** Then recommend a fixed allowlist/dispatcher, strict argument validation, real server-side authorization, least privilege, and secure implementation of every tool.
 
 Notebook: [Module_307_Function_Calling_Safety_Worksheet.ipynb](Output_Attacks/Module_307_Function_Calling_Safety_Worksheet.ipynb). It demonstrates a local allowlisted dispatcher and per-user authorization using fictional data. It does not call external tools, evaluate generated code, or contact a service.
+
+## Section 6 of 14 — Exfiltration Attacks
+
+### Markdown can cause a network request
+
+Markdown is often treated as formatting, but an image reference such as `![description](URL)` can make a browser fetch a remote resource when rendered. The square brackets contain alternative text; the parentheses contain the resource URL. The equivalent HTML is an image element with a source URL. If the model can access private context and an attacker can influence its response, that URL can carry selected context to an external server. The server may record the URL in its request log. The browser performs the fetch; no JavaScript is required for this channel.
+
+### The attack chain and its prerequisites
+
+HTB demonstrates this with prior chat messages, a website summary, private messages, and malicious custom chatbots. The common chain is: **sensitive content enters the model's context → attacker-controlled content influences the model (indirect prompt injection) → the response includes a remote Markdown image or link containing data → the application/browser or a link-preview service fetches it → the destination receives that data in the request.** The attacker generally needs both access to information in the model's context and a way to influence a victim's interaction. Whether the request succeeds also depends on the renderer and network policies.
+
+The `?` in a URL starts the query string. A value such as `c=...` is a query parameter, while `&` separates parameters. URL encoding is needed to represent spaces and reserved characters reliably. Replacing spaces with `+` may work for a simple example, but it does not safely encode characters such as `&`, `=`, or `?`; those characters can change how the URL is parsed or truncate/misroute the value. Exfiltration can still occur when Markdown is disabled if a user clicks a generated link or an application automatically fetches it for a preview, though those cases add conditions.
+
+### Defenses and COAE exam cue
+
+- Limit sensitive data placed in the model's context, enforce per-user access to retrieved content, and avoid exposing unnecessary secrets to a model or agent.
+- Treat Markdown/HTML as active content. Disable remote images when possible; otherwise allow only trusted origins or use a privacy-preserving proxy.
+- Apply a restrictive Content Security Policy, such as limiting image sources, and prevent automatic fetches of arbitrary generated links where feasible.
+- Model refusal is not a reliable control; protect both the context the model can see and the network destinations the renderer can contact.
+
+For an exam, recognize **private context → indirect prompt injection → generated remote image/link → automatic browser or preview fetch → data in request logs**. Name the exfiltration channel and recommend controls on context access and remote-resource loading. This continues the Module 297 distinction: prompt injection influences the model, while insecure output handling turns its response into a browser/network side effect.
+
+Notebook: [Module_307_Markdown_Exfiltration_Concepts.ipynb](Output_Attacks/Module_307_Markdown_Exfiltration_Concepts.ipynb). It shows URL encoding with fictional text only, prints a non-routable example URL, and makes no request or rendered image fetch.
