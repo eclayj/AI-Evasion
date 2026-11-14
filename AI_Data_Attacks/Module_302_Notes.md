@@ -846,3 +846,53 @@ The study notebook improves reliability in small ways while preserving the cours
 - This subsection loads data; the attack's poisoning, training, and evaluation occur later.
 
 **Exam check:** Given pixel `0.4`, mean `0.5`, and standard deviation `0.2`, compute the normalized value: `(0.4 - 0.5) / 0.2 = -0.5`. Why must the `-1` test label be removed before computing accuracy? Why should the test transform avoid random augmentation?
+
+## Section 17 of 25 — The Attack Components
+
+This section turns a trigger configuration into datasets used to teach and later test a backdoor rule. A poisoned training sample is a source-class image with trigger pixels and a target label. A triggered test sample receives the trigger but retains its original label so we can measure what the trained model predicts. The subsection prepares those datasets and loaders; it does not train the network or compute ASR yet.
+
+### Trigger tensor operation
+
+A single RGB image tensor has shape `(channels, height, width)`, here `(3, 48, 48)`. The trigger operation overwrites a slice: `image[:, row_start:row_end, col_start:col_end] = color`. Read the colon as **“all channels,”** and the two slices as **“these rows and these columns.”** The patch is 4×4, so it contains `4 × 4 = 16` pixel locations. At each location, the RGB color `(1, 0, 1)` is magenta on the 0–1 scale.
+
+The color vector is reshaped to `(3, 1, 1)`. PyTorch broadcasts it across a `(3, 4, 4)` region: each of the 16 positions receives the same red, green, and blue values. Trigger insertion must occur after `ToTensor()` converts image pixels to 0–1 and before normalization changes their meaning. This notebook's `add_trigger` returns a clone with the patch, a small safety improvement over modifying the caller's tensor in place.
+
+### Poison count and label change
+
+The course selects a count using `n_poison = int(n_source × poison_rate)`. Say **“number poisoned equals the integer part of number of source examples times poison rate.”** If 37 Stop examples are available at a 10% rate, then `int(37 × 0.10) = int(3.7) = 3`. `int` truncates the fraction; it does not round to the nearest integer. `random.sample` selects three distinct indices because sampling is without replacement. The global seed configured earlier makes this random selection repeatable in the same execution environment, subject to the usual caveat that changing earlier random calls changes later selections.
+
+For each selected training index, the final target list substitutes `TARGET_CLASS` for the original source label. The image pathway is:
+
+1. Load the source image.
+2. Apply base transform: resize and convert to a 0–1 tensor.
+3. If selected, add the trigger.
+4. Apply training-only augmentation and normalization.
+5. Return image tensor and final label.
+
+Unselected images keep their original label and do not receive a trigger. The selected original is transformed into a poisoned training example; it is not duplicated here as an additional row.
+
+### Triggered test set and ASR
+
+The triggered test dataset applies the trigger to every image it loads, then normalizes without random augmentation. It deliberately returns the CSV's original label. Training changes labels to teach a hidden mapping; evaluation preserves ground truth so predictions can be analyzed after training.
+
+A common Attack Success Rate formula is:
+
+`ASR = (number of eligible triggered inputs predicted as target / number of eligible triggered inputs) × 100%`.
+
+Read it as **“attack success rate equals the number of eligible triggered inputs predicted as target divided by the number of eligible triggered inputs, times one hundred percent.”** The word *eligible* matters: the evaluation protocol may use source-class examples or all non-target examples. Report the specified denominator. ASR measures trigger-conditioned behavior; clean accuracy measures untriggered ordinary behavior. One metric cannot substitute for the other.
+
+### Engineering and scope notes
+
+The section's course code uses a trigger function, a dataset wrapper that modifies only the selected source examples and labels, and another wrapper that triggers evaluation samples while retaining labels. The study notebook adds input-bound checks, returns a copy to avoid unintended in-place changes, validates the poison-rate range, and skips dataset construction when downloads are disabled and files are absent. These are reliability choices; they do not change the attack goal. Data loaders are lazy here: no full dataset batch is loaded and no model training begins.
+
+### COAE quick recall
+
+- Trigger patch is inserted into an RGB 0–1 tensor before normalization; `(3, 1, 1)` color values broadcast across the patch.
+- `n_poison = int(n_source × poison_rate)` truncates; 37 at 10% gives 3.
+- Selected training samples get trigger pixels and target labels; nonselected samples stay clean with original labels.
+- Triggered test samples get trigger pixels but retain their original labels.
+- ASR is target predictions divided by eligible triggered inputs; state the denominator rule.
+- Clean accuracy and ASR test separate behaviors.
+- This subsection defines attack data paths; training and evaluation are later steps.
+
+**Exam check:** With 53 source samples and rate 0.10, `int(53 × 0.10) = 5`. Which fields change for those five training samples? Which field is retained in a triggered test sample, and why?
