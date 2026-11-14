@@ -1029,3 +1029,36 @@ Steganography hides that a message exists; encryption makes the message unreadab
 - Steganography conceals message existence; encryption conceals meaning.
 
 **Exam check:** Which risk is about execution while loading, and which is about hidden data in parameters? Explain why `weights_only=True` helps with deserialization risk but does not prove that a model is free of backdoors.
+
+## Section 21 — Training SimpleNet and Measuring Raw Capacity
+
+This subsection creates a small PyTorch network as a benign target whose parameters can be inspected. Its active forward path is `10 inputs → Linear(10, 64) → ReLU → Linear(64, 1)`. The registered `large_layer` has a larger tensor for capacity analysis but is deliberately not used in `forward()`. It is still included in the model's `state_dict`, even though it does not contribute to predictions in this example.
+
+The lesson makes 100 synthetic rows of 10 features. Targets follow a random linear relationship plus noise. The model trains for five epochs using mean squared error (MSE), which is the average of `(prediction - target)²`, and Adam. A batch size of 16 produces six complete batches and one short batch of 4; five epochs produce 35 optimizer updates. The notebook uses a sample-weighted epoch MSE so that the short batch receives proportionate weight. Its synthetic CPU training and state-dictionary save are opt-in; the capacity calculation runs without training or writing a file.
+
+### Capacity formulas, pronunciation, and example
+
+Let `N` be the number of values in the chosen tensor (`tensor.numel()`), and let `n` be the number of low-order bits assigned per value.
+
+`Capacity_bits = N × n`
+
+Read aloud: **“capacity in bits equals N times n.”** For `large_layer.weight`, shape `[320, 64]` gives `N = 320 × 64 = 20,480` values. At `n = 2` bits per value, capacity is `20,480 × 2 = 40,960 bits`.
+
+`Capacity_bytes = floor((N × n) / 8)`
+
+Read `floor` as **“round down to a whole number.”** Since one byte contains 8 bits, `floor(40,960 / 8) = 5,120 bytes`, or 5 KiB. At 1 bit per value, capacity is 20,480 bits / 8 = 2,560 bytes. The floor matters when the bit count does not divide evenly by 8; unused partial-byte bits are left out.
+
+`numel()` counts values, not bytes. A tensor of 20,480 float32 values occupies 20,480 × 4 = 81,920 bytes in its ordinary representation. The capacity formula counts only the selected low-order `n` bits of each value. This is raw capacity before any format overhead.
+
+The notebook's optional training uses only synthetic CPU data, then saves the parameter-only `state_dict` with `torch.save`. It does not load an external file or create a malicious payload. The unused `large_layer.weight` still appears in the state dictionary and provides the example tensor whose size is counted.
+
+### COAE quick recall
+
+- `N = tensor.numel()` is number of values; `n` is chosen low-order bits per value.
+- Raw capacity bits = `N × n`; raw bytes = `floor((N × n) / 8)`.
+- `large_layer.weight`: 320 × 64 = 20,480 values; at 2 bits/value → 40,960 bits → 5,120 bytes (5 KiB).
+- Tensor element count and tensor byte size differ: float32 uses 4 bytes per value.
+- Capacity is only a theoretical maximum; it does not prove that data is present or the model is safe.
+- The synthetic training gate defaults to `False`; when enabled it uses CPU and saves only a state dictionary.
+
+**Exam check:** For 12,000 values and two bits per value, raw capacity is `12,000 × 2 / 8 = 3,000 bytes`. Explain why this is less than the full float32 tensor size (`12,000 × 4 = 48,000 bytes`).
