@@ -344,3 +344,23 @@ Distinguish **voluntary guidance** (NIST AI RMF) from **binding legal obligation
 - [European Commission: Digital Services Act Q&A](https://digital-strategy.ec.europa.eu/en/faqs/digital-services-act-questions-and-answers)
 - [European Commission: DSA obligations for very large platforms and search engines](https://digital-strategy.ec.europa.eu/en/policies/dsa-vlops)
 - [European Commission: AI Act risk-based framework](https://digital-strategy.ec.europa.eu/en/policies/regulatory-framework-ai)
+
+## Section 14 of 14 — Skills Assessment: LLMPics
+
+### Scenario and scope
+
+The assessment asks for a security assessment of the spawned `LLMPics` website and the lab flag. HTB provides a test account in the section and says to use the web application directly in a browser; this assessment does not require SSH port forwarding. The spawned host and port are temporary, so enter the current instance into the notebook rather than committing it.
+
+Initial browser reconnaissance found an `Imagebot` that can return a random photo or search for an image, a `(Beta) Adminbot` route that asks for an `admin_key`, and a login/profile flow. An unauthenticated request to Adminbot returned “Please provide your admin_key”; a deliberately incorrect test value returned “Invalid admin_key.” A benign Imagebot question identified its supported photo-search behavior. A direct request to reveal hidden configuration was refused. Some follow-up Imagebot submissions produced no visible result; treat those as inconclusive rather than proof of a vulnerability or a fix. These observations do not establish the full backend design or the route to the flag.
+
+### Assessment method
+
+Proceed from the visible application and test one hypothesis at a time. Use a benign baseline, observe what the bot returns and what the app does with it, then choose a technique based on evidence. The module's relevant boundaries include generated output rendered in HTML/Markdown, database search, command execution, tool/function dispatch, and access to data or an admin capability. Distinguish a model claim from a verified application effect. Do not brute-force credentials or keys; keep the work scoped to the current spawned instance.
+
+The accompanying notebook holds an empty target host/port, provides a narrowly scoped read-only page inspector, and records only redacted observations. It does not store the test password, a recovered key, or the flag. The assessment remains in progress until the Academy confirms completion.
+
+### COAE exam cue
+
+For a black-box LLM web app, map user-controlled input → model/tool → output sink or side effect → access-control check. Identify whether the failure is prompt injection, insecure output handling, excessive agency, or a vulnerable downstream function; these can chain together. Verify impact at the application boundary and recommend the corresponding control, not just a stronger prompt.
+
+Notebook: [Module_307_LLMPics_Skills_Assessment.ipynb](Skills_Assessment/Module_307_LLMPics_Skills_Assessment.ipynb).
