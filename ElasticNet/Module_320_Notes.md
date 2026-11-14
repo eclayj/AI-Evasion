@@ -2,6 +2,45 @@
 
 These notes are being built section by section as a practical study guide and COAE exam reference. Formulas are read aloud before their meaning is summarized.
 
+## Section 1 — Introduction to Sparsity Evasion Attacks
+
+### The central change: count edits, not only their size
+
+A sparsity attack seeks a model error by modifying as few input features as possible. For an image, a feature might be one pixel value in one color channel; for text, it might be a token or an encoded feature. The count is commonly described with the L-zero pseudo-norm:
+
+`||x_adv - x||_0 = |{ i : (x_adv)_i != x_i }|`
+
+1. **Say it:** “the L-zero norm of x-adv minus x equals the number of indices i for which coordinate i of x-adv is not equal to coordinate i of x.”
+2. **Pieces:** `x` is the original input; `x_adv` (“x-adv”) is the adversarial input; `i` (“eye”) picks one coordinate. The braces collect indices where the two values differ. The outer vertical bars mean “count the members.”
+3. **Together:** count how many coordinates changed, regardless of the magnitude of each change.
+
+Example: original `[0.1, 0.3, 0.5, 0.7, 0.9]`, adversarial `[0.1, 0.3, 0.8, 0.7, 0.4]`. Only coordinates 3 and 5 differ, so the L-zero count is 2. Their changes have magnitudes 0.3 and 0.5, but those magnitudes do not change the count. For comparison, L1 totals magnitudes (`0.8` here); squared L2 totals their squares (`0.34` here). L0 asks “how many?”, while L1/L2 also measure “how much?”.
+
+L0 is called a **pseudo-norm** because it counts nonzero entries but does not satisfy every mathematical rule required of a true norm (in particular, scaling a nonzero vector does not scale its L0 count). Minimizing it directly is a difficult discrete/combinatorial problem. A common strategy is to encourage sparsity indirectly with L1, whose geometry and proximal soft-threshold operation can create exact zeros.
+
+### Threat model and input validity
+
+The page considers an attacker at inference time: the model already exists and is producing predictions. In a **white-box** setting, the attacker can evaluate gradients through the model. In a **black-box** setting, the attacker may estimate importance with queries or use a separate surrogate model and transfer the pattern. The primary budget can be L0 (maximum number of changed coordinates); L2 or L-infinity limits may also cap change size. For image pixels represented in `[0,1]`, updates must respect those valid bounds.
+
+If a model normalizes an input, `x_hat = (x - mu) / sigma` is read “x-hat equals x minus mu, divided by sigma.” `mu` is the centering average; `sigma` is the scale. The chain rule carries derivatives through this transform. For one coordinate, if `x_hat = (x - mu)/sigma`, then `d x_hat / d x = 1/sigma`; a loss gradient with respect to x-hat is therefore multiplied by `1/sigma` to obtain its contribution with respect to x. The model's preprocessing changes gradient scale, not the fact that gradients can guide feature selection.
+
+### Two ways to create sparse changes
+
+- **ElasticNet / EAD:** adds an L1 penalty to a smooth distortion and adversarial objective. L1 encourages many perturbation coordinates to become zero, giving an L0-like outcome while keeping the optimization compatible with a proximal update. It encourages sparsity; it is not a hard guarantee of an exact maximum feature count.
+- **JSMA:** uses input derivatives to score features with a saliency map and changes one or a small number of selected features per iteration. A feature-count budget is explicit. It chooses features based on their effect on a target class and competing classes.
+
+Both methods can use gradients, but the L0 constraint and feature-selection procedure differ. Later sections implement these methods; this Introduction adds no new executable code.
+
+### Why sparse edits matter and COAE quick recall
+
+Few-feature changes reflect settings where only a few values can be changed, and they can help explain which features influence a model's decision. Sparse does not guarantee visually imperceptible or undetectable: a single large or important change may be obvious. Defenses that measure only global noise may miss a small concentrated edit, so evaluate feature counts and individual magnitudes as separate properties.
+
+- If the question asks “how many input dimensions changed?”, answer L0.
+- If it asks about per-feature magnitude limits, think L-infinity; total absolute magnitude, L1; squared energy, squared L2.
+- EAD/ElasticNet encourages L0-like sparsity through L1 and proximal thresholding; JSMA selects features under an explicit L0-style budget.
+- White-box means gradient access through the target model; black-box means estimates or transfer without direct gradient access.
+- Keep the threat model explicit: inference-time changes, valid input bounds, and any feature-count or magnitude limits.
+
 ## Section 2 — ElasticNet
 
 ### Why this attack is useful
