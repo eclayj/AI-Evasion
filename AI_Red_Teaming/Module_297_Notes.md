@@ -214,3 +214,34 @@ Treat fetched pages, comments, documents, and emails as untrusted even when they
 This section provides hands-on web, HTML, and SMTP labs rather than a Python model implementation. I added a lightweight standard-library notebook to demonstrate locally that HTML comment text exists in the source even though it is not ordinary page text, and to organize redacted observations by injection location and downstream effect. It does not fetch URLs, start a web server, send email, or connect to the target.
 
 Notebook file: [Module_297_Indirect_Prompt_Injection_Lab.ipynb](Indirect_Prompt_Injection/Module_297_Indirect_Prompt_Injection_Lab.ipynb). The network actions remain manual through the authorized HTB lab and its documented SSH tunnel.
+
+## Section 6 of 12 — Introduction to Jailbreaking
+
+### What a jailbreak tries to change
+
+**Jailbreaking** is an attempt to make a language model disregard restrictions or depart from the behavior it was intended to follow. Restrictions can come from a system prompt, from model training and safety tuning, or from both. This distinction matters: asking the model to ignore a written instruction tests prompt following; asking for something it was trained to refuse tests a different layer. A prompt-level refusal rule is not the same thing as a separately enforced application permission.
+
+The lesson also uses jailbreak in a broader sense: making a model leave its intended task, such as getting a translation bot to answer an unrelated cooking question. Whether that is a security vulnerability depends on the application's purpose and the impact. A harmless off-topic answer is different from exposing private data or causing an unauthorized action.
+
+### Types of jailbreak prompt described by HTB
+
+The section introduces a taxonomy, not a set of guaranteed working prompts:
+
+- **DAN (Do Anything Now):** a role or mode framing that claims the model can ignore its normal limits. The new name or persona does not grant real authority.
+- **Roleplay:** ask the model to answer through a character or fictional interaction rather than directly. This overlaps with Section 4's context-switching strategy; the source is still direct if the user types it in the chat.
+- **Fictional scenarios:** put the request inside an invented story. Fiction changes the framing, not the underlying content or its potential effect.
+- **Token smuggling:** alter how sensitive words are written, split, or encoded in an attempt to evade checks that match familiar surface text. A downstream model may still reconstruct the request, so filtering only one spelling is incomplete.
+- **Suffixes and adversarial suffixes:** append text to a request to steer the model's continuation. Research-generated adversarial suffixes may look nonsensical to people because they are selected for how a model processes their token sequence, not for ordinary readability. They can be model-specific and brittle.
+- **Opposite or “sudo mode”:** claim the model has entered a special mode where restrictions no longer apply. A textual claim cannot change the model's actual permissions or the application's authorization checks.
+
+“Universal jailbreak” is used in research for a jailbreak intended to transfer across many models or prompts. “Universal” describes the intended transferability; it does not mean a single prompt is guaranteed to bypass every model. The section notes that new approaches continue to be studied, and its list is not exhaustive.
+
+### Connect this taxonomy to Sections 4 and 5
+
+**Direct versus indirect** describes where attacker-controlled text enters: the user's message, or content the application retrieves or imports. **Jailbreak** describes the attacker's goal or prompt strategy: bypass a restriction or make the model depart from its intended behavior. These are different dimensions. A roleplay jailbreak might be typed directly, or the same kind of instruction might be embedded in an email that a model later reads.
+
+Section 4 showed simple prompt reframing; Section 5 showed that such instructions can travel through comments, web pages, and email. This section groups more families of attempts, including token-level tricks and adversarial suffixes. Model version, tokenization, surrounding instructions, safety tuning, and sampling behavior all affect results. A successful experiment against one setup is evidence about that setup, not a general guarantee.
+
+### Notebook decision
+
+This is a conceptual overview and taxonomy. HTB provides references for further reading but no code exercise, dataset, or lab workflow to implement here. I updated these notes only; a new notebook would not add practical value until a later section introduces an experiment or implementation.
