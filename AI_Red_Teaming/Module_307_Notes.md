@@ -233,3 +233,24 @@ The lesson recommends sandboxing deployments that execute commands based on mode
 ### COAE exam cue and notebook decision
 
 For each scenario, identify the sink and match its defense: HTML encoding, SQL parameterization, fixed command arguments, or validated tool dispatch. Then identify who enforces authorization (trusted application code) and how least privilege limits the model's reach. Sandboxing is defense-in-depth that reduces impact; it is not the same as preventing injection. This section consolidates the patterns and notebooks from Sections 2–6, so no additional notebook is needed.
+
+## Section 9 of 14 — Introduction to Abuse Attacks
+
+### Deliberate misuse versus accidental error
+
+Section 7 covered **hallucinations**: fabricated or incorrect output that can arise without a deliberate attempt to deceive. **Abuse attacks** deliberately use an LLM's text-generation or interaction capabilities to harm people or organizations. The categories can overlap: a malicious campaign may intentionally spread a false narrative, and the model may invent extra details along the way.
+
+### Why LLMs can amplify existing harms
+
+The section surveys four broad impacts:
+
+- **Propaganda and psychological manipulation:** generate persuasive narratives, fake testimonials, or social-media posts at scale; automated accounts can amplify them and create the appearance of broad support.
+- **Cybersecurity threats and fraud:** produce polished phishing, impersonation, payment-diversion, or other social-engineering messages. Fluency can remove some traditional spelling and grammar warning signs, so those checks are not enough to determine trustworthiness.
+- **Misinformation, fake reviews, and defamation:** publish false claims or reviews quickly, misleading consumers and harming reputations before corrections catch up.
+- **Hate speech:** biased training patterns or manipulative prompts can produce targeted abusive content, and scale can intensify its reach.
+
+These are use-and-impact risks, not a specific code vulnerability. They are amplified by speed, personalization, conversational persistence, and distribution scale. Human review and platform/content policies are relevant safeguards, but should be complemented by abuse monitoring, rate limits, provenance, and reporting/escalation processes appropriate to the application.
+
+### COAE exam cue and notebook decision
+
+Recognize the difference between **unreliable output** (hallucination) and **deliberate harmful use** (abuse), while noting that a single incident may involve both. When describing the risk, name the harm and the scaling factors—persuasiveness, personalization, and automation. This is an overview section without new code or a practical implementation, so the study-guide notes are sufficient; no notebook is needed.
