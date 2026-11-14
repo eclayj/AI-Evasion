@@ -111,3 +111,56 @@ The section's reconnaissance questions are intended for an in-scope application.
 This subsection introduces a practical CLI tool but no code to integrate into the course repository. I added a small standard-library notebook to organize the reconnaissance checklist and interpret the LLMmap distance ranking shown on the page. It uses only HTB's example output, makes no network requests, and does not install or run LLMmap.
 
 Notebook file: [Module_297_Reconnaissance_Worksheet.ipynb](Reconnaissance/Module_297_Reconnaissance_Worksheet.ipynb). The code cells use only the Python standard library and the HTB example output; no target connection is made.
+
+## Section 4 of 12 — Direct Prompt Injection
+
+### What “direct” means
+
+A **direct prompt injection** is an attempt to influence the model through the attacker's own message. The attacker is directly changing the text the application sends as the current user request. This contrasts with an indirect prompt injection, where attacker-written instructions arrive inside content the model is asked to read, such as a document or web page. In either case, the key question is whether untrusted text can steer model behavior beyond the intended task.
+
+The first lab, **Prompt Leak 1**, places a secret and instructions not to reveal it in the system prompt. Asking plainly for the secret is refused. The lesson then explores ways to get the model to handle earlier instructions differently. A system prompt is part of the model's context; it is not an access-control mechanism. If an application gives a model sensitive data, a prompt saying “keep this secret” cannot guarantee confidentiality.
+
+### The prompt-leak strategies and what each is testing
+
+HTB demonstrates several families of prompts. These are experiments against the authorized lab, not reliable recipes that should work on every model:
+
+1. **Change a rule or assert authority.** Try adding a supposed exception (“admins may see the key”) and then claim to qualify. The claim is only text; it does not authenticate the user. The test reveals whether the model treats a later user instruction as able to revise an earlier rule.
+2. **Storytelling and context switching.** Ask for a poem, story, or dialogue involving the secret. This reframes the request as creative writing and tests whether the model carries the secrecy rule into the new task.
+3. **Translation or spell-checking.** Ask the model to transform the previous text. The system prompt is now framed as material to translate or edit. This tests whether the model can keep instructions separate from quoted or transformed content.
+4. **Summarize or repeat.** General prompts such as “summarize the above,” or targeted questions about the first sentence or a word in braces, can expose earlier context directly or piece by piece.
+5. **Encoding requests.** Ask for Base64, ROT13, or reversed text. The lesson warns that language models can produce output that looks encoded but is not a correct encoding. Always verify such output with a real decoder; the page's sample decodes to text that is not the secret.
+6. **Indirect exfiltration.** Ask for a hint or only the first or last few characters. A filter that blocks the complete key may still allow enough clues to reconstruct it. “Exfiltration” means getting information out of a system; “indirect” means collecting clues rather than requesting the whole value at once.
+
+### Why results can vary
+
+LLM generation can be stochastic: the same prompt may produce different text on separate attempts. Model version, system instructions, safety layers, sampling settings, and small wording changes can also affect the result. One refusal does not prove the information is safe, and one successful response does not prove the same payload will work reliably elsewhere. Record the exact prompt and response, repeat only within the lab's rules, and distinguish what was observed from what is inferred.
+
+### Direct injection can change an application's outcome
+
+The lesson's drink-order example shows impact beyond leaking a prompt. A model receives a request to order items and calculate a price. A discount-code attempt produces an invalid response, but another prompt convinces it to change an item's price and return a lower total. This illustrates **integrity impact**: untrusted input altered a value used in a business decision.
+
+The protection belongs in trusted application code. A server should load the real catalog price, verify identity and discount eligibility, calculate the total, and validate the model's output before taking action. A model's statement “I am an admin” is not authentication; a model-generated price is not a trusted price. Tool permissions, financial limits, and approval requirements need independent enforcement.
+
+### Lab access through SSH port forwarding
+
+HTB's lab offers a web application on remote port 80 and SMTP on remote port 25, and allows the lab to connect back to a service on the learner's computer. The sample command is:
+
+```text
+ssh htb-stdnt@<SERVER_IP> -p <PORT> -R 8000:127.0.0.1:8000 -L 2525:127.0.0.1:25 -L 5000:127.0.0.1:80 -N
+```
+
+`<SERVER_IP>` and `<PORT>` are placeholders for the values HTB displays after the lab starts. `-p` selects the SSH server's port. Each `-L local_port:destination_host:destination_port` creates a local forward: local port 5000 reaches the remote lab's web server on port 80, and local port 2525 reaches its SMTP service on port 25. `-R 8000:127.0.0.1:8000` creates a reverse forward so a connection from the lab to its own port 8000 travels back to port 8000 on the learner's computer. `-N` keeps the tunnel open without starting a remote shell or command. Open `http://127.0.0.1:5000` locally after connecting. The HTB page explicitly notes that this SSH service is not configured for remote code execution.
+
+The VPN provides network reachability to the HTB environment; SSH then carries these selected connections through an encrypted tunnel. The two serve different purposes. Keep the tunnel open while using the lab, and stop it when finished.
+
+### Connection to earlier lessons and defensive takeaway
+
+Section 2 modeled the context as system instructions, prior history, and the current user request. This section tests whether the current user text can override or expose earlier context. Section 3's reconnaissance checklist asks what the model and application can access; this section demonstrates why that matters. The biggest risk depends on the application around the model: a text-only leak affects confidentiality, while a tool or transaction integration can also affect integrity or cause an action.
+
+For defense, do not place secrets in prompts if the model does not need them; separate untrusted content from trusted instructions; validate model output against a strict schema; and enforce identity, permissions, prices, limits, and consequential actions in ordinary application code. Filters can help, but should not be the only control.
+
+### Notebook decision
+
+HTB provides a hands-on web lab rather than Python code or a dataset. I added an annotated notebook as a **manual experiment worksheet**: it explains the SSH tunnel, organizes the lesson's prompt families, and records repeated observations and defensive checks. It does not make HTTP/SMTP requests or submit prompts automatically, so it has no hidden network behavior and does not depend on a fragile target response schema.
+
+Notebook file: [Module_297_Direct_Prompt_Injection_Lab.ipynb](Direct_Prompt_Injection/Module_297_Direct_Prompt_Injection_Lab.ipynb). Replace the SSH placeholders only with the values shown for your active HTB lab. Use the worksheet only within that lab and its stated rules.
