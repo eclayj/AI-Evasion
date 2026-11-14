@@ -587,3 +587,42 @@ The section describes information gain but does not estimate uncertainty distrib
 - The course's `predict_proba(...)[0][1]` assumes a class column order and exposes internals. The notebook routes scores through the existing wrapper, which counts each message and uses the dynamically determined spam index. The wrapper still simulates a black box locally.
 - Phase 3 should account for baseline, individual, pair, and triplet requests, not estimate them from the number of returned dictionary entries. A query cap and shortened shortlist prevent overruns.
 - The [GoodWords baseline notebook](GoodWords_Baseline_Study.ipynb) now includes the complete phased workflow, exact request accounting, query milestones, and combined/individual impact summaries.
+
+## Section 10 of 12 — Black-Box Attack Implementation
+
+### From discovered words to a measured evasion rate
+
+This section applies the discovered word ranking to spam messages and compares black-box discovery with the earlier white-box GoodWords ranking. The black-box selection signal is empirical impact, `r_w(x)=f(x)-f(x⊕{w})`: measure the original spam score, append word `w`, and subtract the new score. This differs from white-box goodness, which ranks words from learned class-conditional probabilities. The two rankings can disagree because one measures training-set association and the other measures observed changes on particular messages.
+
+For `N` evaluation messages and a chosen word set, the attack reports:
+
+\[
+R=100\times\frac{E}{N},
+\]
+
+where `E` is the count whose augmented message has spam probability below the `0.5` decision threshold. Read it aloud as **“R equals one hundred times E divided by N.”** For example, `14` evaded messages out of `20` gives `100×14/20=70%`. The percentage is only meaningful alongside its numerator and denominator. If only a few messages remain when a budget runs out, report that reduced sample size; do not present it as though all planned examples were tested.
+
+The zero-word row measures the baseline false-negative rate: messages already classified as ham before modification. Comparing `R(k)` with `R(0)` helps distinguish those pre-existing errors from additional messages flipped by the attack. A result at `k` words is not necessarily the same as the rate of attack-caused flips unless the baseline cases are accounted for.
+
+### Keep discovery and evaluation separate
+
+The Academy sample selects `spam_messages[:50]` for discovery, then `spam_test_messages[30:50]` for evaluation. Those ranges overlap on messages 30–49, so they are not a fresh holdout despite the prose. The notebook instead uses the first 50 test spam messages for discovery and the next 20 for evaluation. A truly independent final estimate would ideally use a separate validation set or freshly collected examples; this split is a course-study workaround.
+
+Evaluation also consumes queries. Seven augmentation sizes on 20 messages require up to `7×20=140` submissions. The notebook reserves those 140 requests first and gives the three-phase search the remaining 860 from the total 1,000-query budget. The phase allocator then works on that reduced budget, and each actual request still goes through the shared counter. White-box comparison scores are computed locally from the same evaluation messages and are not counted as black-box service requests; they are a separate local control.
+
+### Course code differences worth recognizing
+
+The page's sample calls `build_candidate_vocabulary(X_train, y_train)`, but in our notebook `X_train` is already a sparse feature matrix. Candidate mining needs the original strings in `train_text`. The sample also calls the classifier directly, assumes spam is probability column `[1]`, estimates combination queries after running them, and contains summary names that are not defined in this notebook (`test_acc`, `word_impacts`, `output_dir`). The notebook reuses the Section 9 result dictionary, dynamic `spam_index`, exact query wrapper, and existing `word_impact_df`, then defines a results directory and JSON import when saving.
+
+The course page's example outputs (for example, “really” at `0.121` impact or a typical 85–95% of white-box performance) are experiment-specific claims, not guaranteed outcomes. Impact depends on the archive version, preprocessing, model, random seed, test split, sample size, and candidate vocabulary. Performance percentages should be computed from this run's rates rather than copied from the lesson.
+
+### COAE quick recall
+
+- `r_w(x)=f(x)-f(x⊕{w})` measures the score decrease; goodness from `P(w|ham)/P(w|spam)` is a different, white-box ranking criterion.
+- `R=100×E/N`: evasion rate is a percentage over measured examples. Always retain `E` and `N` and report the baseline zero-word rate.
+- The page's `30:50` evaluation range overlaps its first 50 discovery samples. Use disjoint examples when estimating generalization.
+- Reserve evaluation queries before allocating the discovery budget. In this notebook, 20 examples × 7 word counts = 140 reserved, leaving 860 for discovery out of a 1,000 request total.
+- Count every original, augmented, and evaluation submission through one wrapper. Respect the configured budget rather than incrementing an approximate counter afterward.
+- Access probability columns by their class label (`spam_index`), not an assumed column position. In this notebook the local model is still only a simulator for a black-box interface.
+- The 85–95% performance comparison and specific word impacts are not universal. Recompute them on the actual model and a disjoint evaluation sample.
+- Results persistence should serialize plain Python numbers and words. Store query totals, sample denominators, thresholds, and configuration with the rates so results remain interpretable.
