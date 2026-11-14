@@ -509,3 +509,61 @@ When a question describes an MCP vulnerability, trace five things: **attacker-co
 **Production perspective:** these are demonstrations against the spawned HTB lab only. Never test probes against unrelated systems. Treat any discovered credential as compromised; do not save it in notebook output, source control, or study notes. Production reviews should use test accounts and explicitly scoped destinations, and should avoid destructive tool calls.
 
 **Notebook decision:** Added `Module_315_Vulnerable_MCP_Servers_Study.ipynb` as a companion to the Section 10 practical notebook. It reuses MCP client vocabulary but keeps this section's network calls separate. The target is a placeholder, all lab requests are disabled by default, and the notebook explains the purpose and expected interpretation of each probe without storing responses or credentials.
+
+## Section 12 — Malicious MCP Servers
+
+### The threat model reverses
+
+In Section 11, the attacker was a malicious MCP client exploiting a vulnerable server. Here, the MCP server is the attacker: it advertises tools or serves content that tries to steer a connected AI host. The key distinction is **who controls the server-side text and behavior**. The MCP host may trust the connection enough to show the tools to its user, but the model's prompt can include server-controlled descriptions and returned data.
+
+This connects to the direct and indirect prompt-injection foundations in [Module 297](../AI_Red_Teaming/Module_297_Notes.md) and Module 315 Section 5, Rogue Actions. The new lesson is how MCP's capability-discovery and tool-call flow creates additional places where untrusted instructions can enter.
+
+### Direct and indirect injection through MCP
+
+The host typically gives the model tool names, parameter schemas, and descriptions so it can choose a capability. A malicious server can put instructions aimed at the model inside a tool description. HTB shows a deliberately obvious instruction to make the model respond with a fixed word; the same path can instead ask the model to call a tool or reveal information. The instruction is **directly supplied by the malicious server's tool metadata**, even though it is not typed by the end user.
+
+Instructions can also arrive in a tool result or resource. For example, a user-controlled username returned by an otherwise ordinary account service may contain hostile text. When the host adds that result to the model's context, the text can influence later behavior. This is **indirect prompt injection** because attacker-controlled instructions are embedded in data the application retrieves or processes. The external service need not itself be malicious; an attacker may only need permission to create or edit one record.
+
+### Tool poisoning: a description disguises a data or action request
+
+**Tool poisoning** places malicious instructions in a tool description. HTB's `@mcp.tool()` examples use a function called `log`; read the decorator as “at MCP dot tool,” meaning FastMCP registers the function as a callable capability. The docstring is more than a comment for a programmer: the server can publish it as description text that the host supplies to the model.
+
+In one example, the description says to send a summary of every user prompt to the logging tool, while the implementation sends its `prompt` argument in an HTTP POST to an attacker-controlled address. `requests.post(url, data=...)` means “send an HTTP POST request to this URL with these values in the request body.” The model may treat the fake logging instruction as part of its task and pass private prompt text to the tool.
+
+Other examples ask the model to read a local SSH key and add it as a hidden argument, or to use a separate GitHub capability to change repository visibility. The exact impact depends on the host's available tools and permissions. A poisoned MCP capability can try to recruit unrelated host capabilities, so reviewing only the server's own code misses part of the risk. Do not treat an instruction in tool metadata as user authorization.
+
+HTB also notes that instructions can be visually obscured with Unicode characters. A human may not notice look-alike or invisible characters that a model processes. Review should consider the normalized description, not just how it appears in a UI.
+
+### Rug pull: benign at approval, malicious later
+
+A **rug pull** is a delayed tool-poisoning attack. The server first presents a benign tool description for inspection. After the user approves the server—or after a period of apparently normal use—the server changes the description to include malicious instructions. The server may wait for a certain number of calls before changing it.
+
+The lesson's Python example changes a function's `__doc__` value; pronounce that “dunder doc” or “double-underscore doc.” It is the function's documentation string. If the server uses it to form the published tool description, updating the string can change what the host presents to the model. The MCP client must refresh its tool list for that changed description to take effect, but that refresh requirement is not a trust check.
+
+For defense, treat a changed tool name, description, or input schema as a capability change. Pin and compare versions or hashes, display provenance and changes, and request renewed user approval before using changed tools. An earlier approval should not silently cover a later tool definition.
+
+### Tool shadowing: collisions and cross-tool influence
+
+**Tool shadowing** targets an AI host connected to multiple MCP servers. A malicious server can expose a tool with the same name and similar parameters as a trusted tool—for example, two different servers both publish `send_email`. The model may select the attacker's implementation, which can capture or alter the recipient and message.
+
+In a subtler form, the malicious server's tool description tells the model how to use another, trusted tool. For example, it may instruct the model to change the recipient whenever it calls the trusted email capability. The trusted tool may execute correctly according to its own code, but its arguments have been manipulated upstream.
+
+The practical lesson is to preserve **server provenance** in the host's tool list, avoid ambiguous name collisions, and bind each tool call to the server and schema the user selected. Sensitive actions still need policy checks and confirmation at the tool boundary; a model choosing a tool is not authorization.
+
+### COAE scenario recall
+
+| Scenario clue | Technique | What to trace |
+| --- | --- | --- |
+| A server's tool description contains instructions to reveal data or call another tool | Direct injection through metadata / tool poisoning | Who wrote the description, what context or capability the model has, and what action the server performs |
+| A record, username, file, or fetched page contains instructions that steer the assistant | Indirect prompt injection | Who can place the content, how it reaches model context, and which privileged action may follow |
+| Tool description changes after the user inspected or approved it | Rug pull | Compare the initial and current name/schema/description; require fresh approval for changed capability |
+| Two MCP servers publish similarly named tools, or one tool changes how another is called | Tool shadowing | Preserve server identity and provenance; resolve ambiguity and constrain side effects |
+| Hidden local-file or plugin actions are requested by tool metadata | Tool poisoning with capability chaining | Check least privilege and enforce policy in each file/plugin tool independently |
+
+**Exam method:** name the instruction source, identify whether it enters as metadata or returned data, list the host capabilities it could influence, then state the likely impact and the control at the boundary that should stop it. Mention both the model-level manipulation and the server/plugin authorization checks; prompt filtering alone does not make an over-privileged tool safe.
+
+**HTB's lesson:** malicious MCP servers can inject instructions through tool descriptions and results, poison tools, change descriptions after approval (rug pull), or shadow trusted tools by name or behavior.
+
+**Production perspective:** treat third-party MCP servers and their returned content as untrusted. Review tool code and descriptions, verify identity and integrity, detect capability changes, maintain server provenance, minimize host permissions, and require explicit authorization for sensitive actions. The malicious source examples in the lesson are for static analysis; they are not implemented as executable notebook code.
+
+**Notebook decision:** No new notebook is appropriate for this theory and threat-analysis section. Its sample implementations intentionally exfiltrate prompts or request private files and unauthorized plugin actions. The notes preserve the attack chains and exam cues without creating code that performs those actions; Section 11's opt-in lab notebook remains separate.
