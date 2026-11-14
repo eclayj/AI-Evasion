@@ -994,3 +994,38 @@ These are the sample results displayed in HTB's lesson, not a fresh notebook exe
 - Notebook evaluation remains off by default to avoid unexpectedly processing both full test sets.
 
 **Exam check:** Why can clean accuracy look normal while a backdoor is present? If 270 of 270 eligible triggered source images become the target class, what is the source-only ASR?
+
+## Section 20 — Pickles and Tensor Steganography
+
+This section covers two different model-file risks: unsafe deserialization can execute code while Python rebuilds an object; tensor steganography hides information in the bit patterns of numerical model parameters. The first can be an execution path, while the second can provide a covert storage location.
+
+### Pickle and model-file trust
+
+Serialization converts an in-memory object to bytes; deserialization reconstructs the object. Python pickle can rebuild complex objects. A special method named `__reduce__` may describe a callable and arguments for reconstruction. If an unrestricted unpickler processes malicious instructions, a callable may run during loading. The risk chain is: untrusted file → object reconstruction → attacker-controlled reconstruction instructions → code execution.
+
+PyTorch `torch.save` commonly uses pickle-based serialization, and `torch.load` reads it. A `.pt` or `.pth` extension does not make a file safe. For parameter-only checkpoints, prefer a state dictionary and explicitly request `torch.load(path, map_location="cpu", weights_only=True)` when supported by the installed PyTorch version. Safetensors is a tensor-focused alternative without Python pickle reconstruction. Confirm provenance through a trusted channel before trusting an expected hash or signature.
+
+Restricted deserialization reduces the risk that loading executes arbitrary object reconstruction behavior. It does not prove that the loaded model's behavior is benign: a backdoor can be represented in model weights. Serialization safety and model-behavior review are separate controls.
+
+### Tensor and float32 notation
+
+A tensor is a multi-dimensional array. A PyTorch `state_dict` maps parameter names to tensors holding learned weights and biases. A common IEEE-754 float32 value uses 1 sign bit, 8 exponent bits, and 23 mantissa bits.
+
+For normalized values, the lesson formula is `value = (-1)^s × (1.m) × 2^(E_stored - bias)`. Read it aloud: **“negative one to the power s, times one point m, times two to the power stored E minus bias.”** `s` is the sign; `m` is the mantissa fraction; the actual exponent is stored exponent minus bias. For float32 the bias is 127; the leading 1 in `1.m` is implicit for normalized values.
+
+The example `0.15625₁₀ = 0.00101₂ = 1.01₂ × 2⁻³` is read as “zero point one five six two five base ten equals zero point zero zero one zero one base two, equals one point zero one base two times two to the negative third.” Its sign is 0, actual exponent is -3, stored exponent is `-3 + 127 = 124` (`01111100`), and its mantissa begins `01` then zero-padding.
+
+At this exponent, the least significant mantissa bit contributes `2⁻²⁶ ≈ 1.49 × 10⁻⁸`, read “two to the negative twenty-sixth, approximately one point four nine times ten to the negative eighth.” Flipping it changes `0.15625` by about `0.0000000149`. The most significant mantissa bit contributes `2⁻⁴ = 0.0625`; flipping it changes the value to `0.21875`. Low-order-bit changes are much smaller, which motivates tensor steganography as a covert carrier that may minimally affect model performance.
+
+Steganography hides that a message exists; encryption makes the message unreadable without a key. The notebook's small `struct` demonstration inspects and flips bits in one known float32 number only. It does not load pickle files or construct a malicious checkpoint; that is a safe educational visualization of the lesson's bit-level idea.
+
+### COAE quick recall
+
+- Pickle can reconstruct Python objects; unrestricted unpickling of untrusted data can execute code through reconstruction instructions such as `__reduce__`.
+- `.pt` and `.pth` are extensions, not trust indicators.
+- Prefer parameter state dictionaries with explicit `weights_only=True` where supported, or use tensor-only formats such as Safetensors.
+- Safer loading does not rule out a backdoor encoded in learned weights.
+- Float32 = 1 sign + 8 exponent + 23 mantissa bits; low-order mantissa flips affect numeric value far less than high-order flips.
+- Steganography conceals message existence; encryption conceals meaning.
+
+**Exam check:** Which risk is about execution while loading, and which is about hidden data in parameters? Explain why `weights_only=True` helps with deserialization risk but does not prove that a model is free of backdoors.
