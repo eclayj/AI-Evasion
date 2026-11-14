@@ -288,3 +288,41 @@ This chain is valuable for security reasoning because no single label describes 
 **Production perspective:** the course's exploit chain is specific to its authorized lab setup and vulnerable software versions. Do not run exploit payloads against real model servers without explicit scope. A production assessment can begin with version/configuration review, access-control checks, dependency scanning, and safe verification of network boundaries.
 
 **Notebook decision:** No new Python notebook is needed. The section's hands-on chain uses SSH tunneling, a vulnerable model-serving API, unsafe YAML deserialization, Java payload construction, and remote code execution. Packaging those steps into a reusable notebook would make an environment-specific exploit too easy to aim at the wrong system. The existing Module 315 notebook remains focused on safe model-extraction concepts.
+
+## Section 8 — Vulnerable Framework Code
+
+### Framework flaws affect the AI system around the model
+
+ML applications depend on frameworks for serving models, tracking experiments, downloading artifacts, and handling data. A flaw in one of those components can affect availability or expose server files even if the model itself is behaving as designed. These are also **supply-chain risks**: the application inherits weaknesses from software components it depends on.
+
+### Ollama: a denial-of-service example
+
+HTB describes **CVE-2025-1975** in Ollama version **0.5.11**. A size-checking error while processing a downloaded model manifest could cause an out-of-range operation and crash the server. This is a **DoS** (pronounced **“D-O-S,”** *Denial of Service*) vulnerability: the demonstrated impact is to make the service unavailable, so the primary security property affected is **availability**.
+
+The lesson is that manifests and other model-download metadata are still untrusted input. Validate their structure and lengths before using them, and keep the affected framework patched. A crash during parsing is a security issue even if no data is stolen and no code is executed.
+
+### MLflow: runs, experiments, and LFI
+
+**MLflow** tracks work across the ML lifecycle. A **run** is one execution of training or another job, with its recorded parameters and outputs. An **experiment** groups related runs so a team can compare them—for example, several attempts to train the same classifier with different settings.
+
+HTB then covers **CVE-2023-6909** in MLflow **2.7.1** and the related **CVE-2024-1594** in **2.9.2**. These are **LFI** (pronounced **“L-F-I,”** *Local File Inclusion*) issues. A URL-to-path handling weakness let a user-controlled artifact location escape its intended directory and retrieve other files from the tracking server.
+
+The path marker `../` is read **“dot-dot-slash”** and means “go up one directory.” Repeating it can traverse toward a parent directory or filesystem root if the application does not correctly constrain the resolved path. In these examples, the first fix checked for traversal in a URL query string. A follow-up issue used a URL fragment instead, showing why checking just one textual part of a URL is not robust validation. URL parsers and application frameworks can interpret strings differently; validation should operate on a parsed, normalized value and enforce the final allowed filesystem boundary.
+
+The primary impact of LFI is **confidentiality**: files may reveal configuration or other sensitive information. Exposed secrets may then enable further access. In COAE scenario questions, distinguish this file disclosure from the Ollama DoS: one affects confidentiality; the other affects availability.
+
+### COAE recall and controls
+
+- Record the affected component and version, the attacker-controlled input, and the operation that processes it.
+- Classify the direct impact: a crash or resource exhaustion is DoS/availability; reading files outside the intended directory is LFI/confidentiality.
+- Patch vulnerable framework versions and track dependencies across model-serving and experiment-tracking systems.
+- Keep management and tracking services behind authentication and network restrictions; do not expose them broadly just because they are “internal ML tooling.”
+- Validate manifests and structured data, check sizes and types, and use safe parsers.
+- Resolve file paths canonically and verify that the final path remains inside an explicitly allowed directory. Test URL parsing edge cases rather than blocking one substring in only the query string.
+- Run services with limited filesystem permissions so a path-handling flaw cannot read unrelated secrets.
+
+**HTB's lesson:** framework vulnerabilities in the AI stack can cause service crashes or arbitrary file disclosure, and a narrow fix can leave another parsing route open.
+
+**Production perspective:** treat the versions in the lab as historical examples, not as a current vulnerability inventory. Check current vendor advisories and supported versions before making remediation decisions. Verify with version/configuration review and safe tests; do not crash or read files from systems outside explicit assessment scope.
+
+**Notebook decision:** No new Python notebook is needed. The lesson demonstrates vulnerabilities by running deliberately vulnerable framework versions and malformed inputs; an executable notebook could crash local services or access files beyond the intended lab. The study notes preserve the reasoning, version/context, and defensive controls without automating those payloads.
