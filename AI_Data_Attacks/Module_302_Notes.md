@@ -1106,3 +1106,44 @@ The notebook includes a small harmless `b"HTB"` round trip using a synthetic ten
 - Steganography hides message presence; it does not encrypt. More LSBs increase capacity and potential numerical distortion.
 
 **Exam check:** Why store a length prefix? With three LSBs per float, why can the final group containing the length header also contain the first payload bit?
+
+
+## Section 23 — The Attack: connect the payload, tensor, and pickle trigger
+
+HTB combines the previous building blocks into an attack chain: prepare payload source as UTF-8 bytes; embed those bytes in `large_layer.weight`; replace that parameter in a copied `state_dict`; then place the modified state dictionary inside an object whose pickle reconstruction hook (`__reduce__`, “dunder reduce”) supplies loader instructions.
+
+The lesson's payload is a reverse shell: the target initiates a network connection back to a listener. The listener IP and port must be reachable from the target. The payload redirects the shell's standard input, output, and error streams to that socket. If the target cannot reach the listener, the callback cannot be established, even if an earlier deserialization step ran.
+
+### Payload size and sequence formulas
+
+Let `P` be payload size in bytes, `n` be low-order bits used per float, and `N` be the number of values in the selected tensor.
+
+`bits_needed = 8 × (4 + P)`
+
+Read aloud: **“bits needed equals eight times four plus P.”** The four is the length prefix; `P` is the payload; eight converts bytes into bits.
+
+`elements_needed = ceil(bits_needed / n)`
+
+Read aloud: **“elements needed equals the ceiling of bits needed divided by n.”** `ceil` means round up to a whole tensor value. The code form `(bits_needed + n - 1) // n` performs that ceiling division with integers. Example: 112 bits with three bits per value takes `ceil(112 / 3) = 38` values.
+
+The sequence is: payload source → UTF-8 bytes → LSB-encoded tensor → copied `state_dict` → wrapper pickle recipe → unsafe load invokes recipe → loader extracts and executes payload. The tensor capacity is `N × n` bits, and the four-byte length header is included in the required size.
+
+### Pickle timing and security meaning
+
+`__reduce__` is called while the wrapper is serialized, so pickle can record a callable and its arguments. In HTB's chain, the recipe points to loader code. The callable runs later when an unsafe unpickler reconstructs the object. Therefore, the trigger is deserialization; saving the object records the instruction but does not itself execute the loader.
+
+Two distinct stages matter: tensor steganography conceals payload bytes in parameters; unsafe deserialization causes loader code to run. The loader then decodes and executes the payload. Hiding code in a model file alone does not execute it.
+
+The notebook's demonstration uses a harmless print string and a harmless `print` reconstruction callable. It inspects pickle opcodes but never calls `pickle.loads`, opens a socket, starts a shell, or saves a Trojan artifact. This preserves the course's mechanism for study without making the notebook's default path execute the live reverse-shell payload.
+
+### COAE quick recall
+
+- `P` = payload bytes, `n` = LSBs per float, `N` = number of carrier values.
+- Required bits = `8 × (4 + P)`; required elements = `ceil(required_bits / n)`.
+- `__reduce__` (“dunder reduce”) supplies the callable and arguments pickle uses for reconstruction.
+- Serialization records the recipe; unsafe deserialization invokes it. Saving alone is not the trigger.
+- A reverse shell calls from target to listener; the listener address must be reachable from the target.
+- Parameter embedding and execution during loading are separate stages.
+- Defend by avoiding unsafe loading of untrusted artifacts, using restricted tensor-only loading where supported, and verifying artifact provenance and integrity.
+
+**Exam check:** What runs during pickle creation, and what runs during unsafe loading? Why must the listener IP be reachable from the target?
