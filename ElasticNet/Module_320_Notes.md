@@ -84,3 +84,40 @@ The model loss and squared L2 term can use gradients; the L1 term is handled by 
 ### Notebook mapping
 
 The existing `ElasticNet/ElasticNet.ipynb` already contains the later momentum, soft-threshold, and FISTA functions. This subsection introduces their mathematical rationale but adds no new executable code. The notebook now includes a concise framework primer before its distance-metric implementation; no later-section function was rewritten.
+
+## Section 5 — Distance Metrics
+
+### Inputs and perturbation
+
+Let `x` be an original image and `x-prime` its adversarial version. Their difference is `delta = x-prime - x`, pronounced “delta equals x-prime minus x.” Each coordinate of delta is the change to one pixel/channel location. A zero coordinate means that location was unchanged.
+
+### L0, L1, and squared L2
+
+- `||delta||_0` (“the L-zero norm of delta”) counts nonzero coordinates: how many values changed. It does not care whether each change was tiny or large.
+- `||delta||_1 = sum_i |delta_i|` (“the L-one norm of delta equals the sum over i of the absolute value of delta sub i”) totals change magnitudes.
+- `||delta||_2^2 = sum_i delta_i^2` (“the squared L-two norm of delta equals the sum over i of delta sub i squared”) totals squared changes. A change of `0.30` contributes `0.09`; a change of `0.15` contributes `0.0225`, one quarter as much.
+
+Example: pattern A has 100 coordinates changed by `0.15`; pattern B has 50 changed by `0.30`. Both have L1 value `15`. Their squared-L2 values are `100 * 0.15^2 = 2.25` and `50 * 0.30^2 = 4.5`. Thus for the same total absolute change, the concentrated/larger changes have twice the squared-L2 cost. This is a numerical illustration of the quadratic penalty. It does not mean squared L2 is a perceptual metric.
+
+ElasticNet's distance term is `D(delta) = ||delta||_2^2 + beta * ||delta||_1`, read “the squared L-two norm of delta plus beta times the L-one norm of delta.” The first part discourages concentrated large changes. The second part rewards sparsity through an L1 contribution, scaled by `beta`. With `beta = 0.1`, the two example costs become `2.25 + 0.1 * 15 = 3.75` and `4.5 + 0.1 * 15 = 6.0`. The smaller combined score prefers pattern A at these settings. `beta` does not set the adversarial-confidence margin (`kappa`) or the overall adversarial-vs-distance constant (`c`).
+
+A nuance for exam answers: minimizing `||delta||_2` alone and minimizing its square alone have the same ordering because squaring is monotonic for nonnegative values. But once this distance is added to other loss terms with weights, replacing the unsquared norm by the squared norm can change the relative trade-off and therefore the optimizer's result. HTB's code computes the **squared** L2 term.
+
+### Reading the PyTorch reductions
+
+Images are batched in `(batch, channels, height, width)` order. For example, `(20, 1, 28, 28)` means 20 grayscale images, each with 1 channel and 28 by 28 pixels. The PyTorch expression `adv_images - original_images` forms delta for every image. `torch.abs(...)` takes coordinate magnitudes; `torch.sum(..., dim=(1, 2, 3))` adds channel, row, and column dimensions while preserving dimension 0. Therefore it returns one distance per image, with shape `(20,)`. Squaring delta first and reducing the same axes yields one squared-L2 distance per image. Finally, `l2_dist + beta * l1_dist` computes the combined metric independently for every batch item.
+
+The helper measures distances; it does not itself clip values, project into a constraint region, apply proximal thresholding, or decide whether the model changed classes. Those are separate operations.
+
+### COAE quick recall
+
+- L0: count changed coordinates. L1: sum their absolute magnitudes. Squared L2: sum their squared magnitudes.
+- ElasticNet distance: squared L2 plus `beta` times L1.
+- In batched images, reduce dimensions `(1, 2, 3)` to get one value per image and preserve the batch axis.
+- Check whether a formula says L2 or squared L2; HTB implements `sum(delta ** 2)`.
+- `beta` scales the L1 contribution; `c` balances the adversarial loss against distance; `kappa` sets the classification margin.
+- A distance function reports a score; it is not a projection, clip, or attack-success test.
+
+### Notebook mapping
+
+The existing `compute_distances(adv_images, original_images, beta)` implements the three sums directly. Comments now identify `delta`, each reduction formula, and the ElasticNet combination. Section 4 already introduced the FISTA machinery; this section supplies the distance measurements it optimizes and reports.
