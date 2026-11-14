@@ -418,3 +418,36 @@ Fine-tuning and adversarial training try to change the primary model's behavior.
 ### Notebook decision
 
 HTB presents training approaches and a guardrail architecture diagram, but no code or data to implement. The existing Section 10 worksheet already compares mitigations and limitations; I updated these notes without creating a duplicate notebook.
+
+## Section 12 of 12 — Skills Assessment
+
+### Scenario and scope
+
+The assessment asks us to evaluate HaWa Corp's website after most features were disabled following a security incident. Its stated objective is to get the CEO account `@vautia` banned from the site. HTB says the application is accessible directly in the browser and does not require the SSH tunnel used by earlier labs. The assessment is limited to the spawned HTB target and its web application.
+
+### Initial observations
+
+The landing page links to a support bot named **HackBot** and an admin route. The chat's opening message invites questions about orders and the incident. A baseline question confirmed the bot is a customer-support chatbot; a follow-up asking about account management received a refusal citing the incident. A read-only visit to `/admin` returned an access-denied message requesting an `key` query parameter. These observations suggest the investigation should focus on the available application workflow and its model-mediated behavior; they do not yet establish the admin-key source or how a ban is performed.
+
+### Connect the assessment to the module
+
+Sections 4 and 6 showed that direct user text can attempt to override instructions. Section 5 showed that application-provided content can carry indirect instructions. Sections 10 and 11 explained why prompt wording alone is weak and why permissions should be checked outside the model. The assessment asks us to find the actual path from a website interaction to the stated moderation outcome, then demonstrate it in the HTB environment.
+
+The attack surface and the correct method must be discovered from the live target. We should distinguish observed behavior from guesses, preserve the exact relevant response only when safe, and use the smallest number of in-scope interactions needed to verify impact. Do not send the ephemeral target address or a recovered flag to Git.
+
+### Notebook decision
+
+This final section is a practical skills assessment. I created a separate annotated notebook with the active target address in one variable, read-only HTTP inspection helpers, and a redacted interaction log. It avoids hard-coding an unknown chat API schema; model interactions remain visible and reviewable through the HTB web interface. Update the target variable when HTB assigns a new instance.
+
+Notebook file: [Module_297_Prompt_Injection_Skills_Assessment.ipynb](Skills_Assessment/Module_297_Prompt_Injection_Skills_Assessment.ipynb).
+
+
+### Assessment result and learning points
+
+The successful path exposed **indirect prompt injection in a multi-step workflow**. HackBot refused a direct request to ban the CEO, but a separate admin summarizer later read the support chat and used user-supplied text that impersonated a moderation-system update. That text instructed the summarizer to identify the author as `@vautia`, assert a rule violation, and recommend a ban. The admin summary produced that verdict, and the Academy marked the question complete. The active target address, recovered admin key, and flag are deliberately excluded from this repository.
+
+This is a trust-boundary failure and a confused-deputy pattern: the summarizer had a privileged role in the workflow, while the content it interpreted came from an untrusted user. A message formatted as a “system update” is still user data; typography does not authenticate its source. The model also accepted identity and misconduct claims without checking an authoritative account record or evidence.
+
+**Defensive connection to Sections 10–11:** prompt-only refusals do not secure downstream model stages. Separate instructions from user content, pass untrusted text as quoted data, constrain model output to evidence-backed fields, verify identity and policy in application code, and require human review for high-impact actions such as bans. Treat generated summaries as recommendations rather than authorization.
+
+The notebook now preserves a reusable target placeholder and documents the successful workflow without credentials or flags: [Module_297_Prompt_Injection_Skills_Assessment.ipynb](Skills_Assessment/Module_297_Prompt_Injection_Skills_Assessment.ipynb).
