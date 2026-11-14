@@ -400,3 +400,58 @@ A **transport** is the channel used to carry protocol messages between client an
 **Production perspective:** the protocol standardizes communication but does not by itself decide whether a tool is safe, whether an identity is authorized, or whether a response can be trusted. Apply least privilege, validate arguments at the server, limit network and filesystem access, and require approval for sensitive actions where appropriate.
 
 **Notebook decision:** No Python notebook is needed for this theory section. The learning objective is to understand protocol roles and message flow; runnable code would add setup without improving that objective. Keep this material in the shared study notes so later MCP labs can refer back to the same vocabulary.
+
+## Section 10 — Practical Introduction to MCP
+
+### FastMCP turns Python functions into MCP capabilities
+
+HTB uses the Python package **FastMCP** to build a small server and client. A Python decorator (say “decorator”) registers the function below it as a capability:
+
+- `@mcp.prompt()` publishes a reusable prompt function.
+- `@mcp.resource("resource://filecount")` publishes a fixed-URI resource.
+- `@mcp.resource("getfile://{file_name}")` publishes a resource template. The value inside braces is a parameter supplied through the URI.
+- `@mcp.tool()` publishes a callable tool, which may change external state.
+
+FastMCP derives the capability name from the function name, its input schema from the function parameters and type hints, and a description from the docstring. A hint such as `text: str` is read “text, type string”; it describes the expected type but does not perform all needed validation by itself.
+
+The lesson's example server has a `spell_check` prompt, a fixed resource returning the file count, a resource template returning file contents, and a `store_file` tool that writes a file. The distinction matters: returning prompt text does not perform the LLM task; reading a resource supplies context; calling the tool performs the write.
+
+### The client discovers and calls capabilities
+
+The example client connects to the server's `/mcp/` endpoint and uses asynchronous Python. Read `async def` as “asynchronous function definition.” `await` means the function pauses until that network operation finishes. `async with client:` opens a session and closes it cleanly.
+
+Functions such as `list_prompts()`, `list_tools()`, `list_resources()`, and `list_resource_templates()` discover what the server offers. `get_prompt()`, `call_tool()`, and `read_resource()` then use a particular capability. A resource template can be selected with a parameterized URI such as `getfile://helloworld`.
+
+### From Python call to JSON-RPC message
+
+HTB observes the HTTP exchange with Wireshark. The HTTP requests carry JSON-RPC messages because Streamable HTTP is the transport and JSON-RPC is the message format.
+
+- Startup begins with an `initialize` request containing the protocol version, client capabilities, and client information. The server's response reports its selected version, capabilities, and server information. The client then sends `notifications/initialized`, a one-way notification with no request ID.
+- Calling `list_prompts()` results in `prompts/list`. The server response lists prompt names, descriptions, and arguments.
+- Calling `get_prompt()` results in `prompts/get`, with the prompt name and its arguments under `params`. The response contains the prompt text.
+- Resource and tool messages follow the same request/response structure with methods such as `resources/read` and `tools/call`.
+- When a requested file does not exist, the handler raises `FileNotFoundError`. FastMCP converts it into an error response associated with the same request ID.
+
+The request ID is used to match responses to requests; it is not a permission check. Also note that raw exception messages can disclose internal paths, so production services should return restrained errors and keep detailed diagnostics in protected logs.
+
+### Security review of the example
+
+The HTB file example intentionally keeps code short to show capability registration and protocol behavior. It constructs paths using a caller-provided file name and demonstrates a file-writing tool. Without strict validation and canonical-path containment, a crafted name could traverse outside the intended directory. Before adapting such code, enforce an allowlist of safe names, resolve and check the final path, restrict permissions, cap input size, authorize reads and writes separately, and consider approval for sensitive tool actions.
+
+The lesson also shows supplying an API key in an HTTP header. Treat the displayed value as a dummy example. Real keys should come from protected configuration or a secret manager, should not be committed into a notebook, and must be paired with authorization checks on the server.
+
+### COAE exam recall
+
+- Match the decorator to the capability: prompt, resource, or tool.
+- Braces in a resource URI indicate a parameterized resource template.
+- `list_*` methods discover capabilities; `get_prompt`, `read_resource`, and `call_tool` use them.
+- Async client calls use `await` because network I/O may take time.
+- Follow IDs across the request/response pair; identify notifications by their lack of an ID.
+- A write-capable tool requires stronger validation and authorization than read-only context retrieval.
+- For file-related MCP code, look for caller-controlled path parts, traversal, excessive input, authorization gaps, and path details leaked by errors.
+
+**HTB's lesson:** implement a local FastMCP server/client, exercise prompts, resources, and tools, and inspect the resulting MCP messages.
+
+**Production perspective:** the course's concise file server is illustrative, not a secure file service. The study notebook uses FastMCP's in-memory client/server connection by default so it remains interactive without launching another Python process or opening a network port; it adds simple filename, size, and path-boundary checks. The course's HTTP capture can be repeated separately in the authorized lab. The notebook is still not production code.
+
+**Notebook decision:** Added `Module_315_MCP_Practical_Study.ipynb` as an annotated training notebook. Unlike the theory-only introduction, this section's learning objective is to connect MCP concepts to executable server/client code. The notebook uses an in-memory server/client connection, a dedicated temporary directory, and constrained file names and content size. It calls out the difference between HTB's minimal example and defensive adaptations.
