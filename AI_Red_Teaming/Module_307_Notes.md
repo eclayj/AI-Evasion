@@ -314,3 +314,33 @@ The Model Armor example uses configuration values such as `LOCATION`, `PROJECT_I
 ### COAE exam cue and notebook decision
 
 Identify **where** a safeguard sits (before the model, after it, or both) and **what** it is designed to detect. Do not treat any one safeguard as universal: in this lesson, Model Armor covers prompt attacks and abuse but not misinformation; ShieldGemma focuses on hate speech/harassment; Prompt Guard focuses on prompt injection/jailbreaking. Keep API credentials out of notebooks and source control. Product features can change, so use current vendor documentation for deployment decisions; this table records the distinctions HTB teaches in this section. No notebook is added because the code is an optional, credentialed vendor API call rather than a safe offline example.
+
+## Section 13 of 14 — Legislative Regulation
+
+### Why regulation is difficult
+
+Legislation tries to reduce harms such as fraud, non-consensual deepfakes, and abusive campaigns while preserving useful innovation and fundamental rights such as freedom of expression. It also has to decide which actors have duties: the model provider, the organization deploying it, the platform distributing the content, or the user who prompted it. Those roles and obligations depend on the law and facts; a technical safeguard alone does not settle legal responsibility.
+
+### United States examples in the lesson
+
+HTB contrasts broad protection for speech in the U.S. with other legal rules that can apply to specific conduct, such as fraud, defamation, or incitement. It highlights the **TAKE IT DOWN Act**, which includes realistic AI-generated or altered intimate depictions of identifiable people in certain circumstances and requires covered platforms to create a notice-and-removal process. The Act became Public Law 119-12 on May 19, 2025; its criminal prohibition and platform process have separate effective dates. This is a targeted example, not a general ban on misinformation.
+
+HTB also mentions the **NIST AI Risk Management Framework (AI RMF)** and the **FTC**. The AI RMF is voluntary risk-management guidance for organizations across the AI lifecycle. FTC consumer-protection authority may apply to deceptive or fraudulent commercial practices involving AI; this does not make the FTC a general speech-content regulator.
+
+### European Union examples in the lesson
+
+The **Digital Services Act (DSA)** sets obligations for digital services, including user reporting mechanisms and responses for illegal content. The European Commission clarifies that the DSA does not itself decide what content is illegal; that definition comes from other EU or national law. Extra systemic-risk assessment and audit/reporting duties apply to designated very large online platforms and search engines (VLOPs/VLOSEs), rather than identically to every service.
+
+The **EU AI Act** is a separate, AI-specific risk-based framework. HTB introduces prohibited, high-risk, limited-risk, and minimal-risk categories. An important real-world nuance is that classification depends on an AI system's intended purpose and use, not simply the fact that it is an LLM. For example, an LLM used in a high-risk context may have different obligations from a general chatbot. The Commission's current materials list transparency duties for certain AI interactions and generated content; schedules differ by obligation and are subject to legislative updates.
+
+### COAE exam cue, current-reference caveat, and notebook decision
+
+Distinguish **voluntary guidance** (NIST AI RMF) from **binding legal obligations** (for example, the TAKE IT DOWN Act, DSA, and AI Act). Know the broad contrast HTB teaches: U.S. protections and targeted laws versus the EU's platform and risk-based AI frameworks. Do not overgeneralize that all misinformation is illegal, that the DSA defines illegality, or that every LLM automatically has the same EU risk category. Because this area changes, use the official materials below for current scope and dates when applying the concepts outside the course. This is a conceptual section with no code, so no notebook is needed.
+
+### Official references for current detail
+
+- [TAKE IT DOWN Act, Public Law 119-12](https://www.congress.gov/119/plaws/publ12/PLAW-119publ12.pdf)
+- [NIST AI Risk Management Framework](https://www.nist.gov/itl/ai-risk-management-framework)
+- [European Commission: Digital Services Act Q&A](https://digital-strategy.ec.europa.eu/en/faqs/digital-services-act-questions-and-answers)
+- [European Commission: DSA obligations for very large platforms and search engines](https://digital-strategy.ec.europa.eu/en/policies/dsa-vlops)
+- [European Commission: AI Act risk-based framework](https://digital-strategy.ec.europa.eu/en/policies/regulatory-framework-ai)
