@@ -248,6 +248,24 @@ This section introduces hands-on examples in the authorized lab but no Python im
 
 Notebook file: [Module_297_Jailbreaks_I_Worksheet.ipynb](Jailbreaks/Module_297_Jailbreaks_I_Worksheet.ipynb). It does not send prompts to the model or contact the lab.
 
+## Section 7 of 12 — Jailbreaks I
+
+HTB moves from a taxonomy of jailbreak styles to concrete examples in its authorized lab. The lesson emphasizes **trial and error**: models differ in their resilience, and no single prompt works across all models. A response can also vary between attempts because the model, its instructions, safety layers, and generation settings affect the result. One refusal or one success describes that run, not a general rule.
+
+### Three strategy families
+
+- **DAN (Do Anything Now):** a long persona prompt claims that the model can ignore its normal restrictions. The persona name and assertions do not grant actual authority or permissions; the experiment tests whether the model follows the framing.
+- **Roleplay:** ask the model to respond as a character in a scenario. This overlaps with Section 4's context-switching idea: the model is asked to handle the same underlying request through a different voice or story.
+- **Fictional scenarios:** place the requested answer inside an invented scene or dialogue. Fiction changes the framing, not the real-world effect that the answer could enable.
+
+The lesson uses a harmless fictional retail setting to demonstrate these patterns. The useful security question is whether the model crosses a restriction or trust boundary, not whether a theatrical prompt sounds persuasive. A jailbreak in a user chat is **direct** because the user supplies it. The same strategy could be **indirect** if its instruction were planted in a document or webpage the application later reads; “direct/indirect” describes the channel, while “jailbreak” describes the goal.
+
+### How to record results
+
+Test only within the lab's stated scope. Record the strategy family, channel, and a short redacted outcome; do not store secrets, tokens, or harmful instructions in the notebook. Treat every result as specific to that model and configuration. The existing [Jailbreaks I worksheet](Jailbreaks/Module_297_Jailbreaks_I_Worksheet.ipynb) already follows this approach and does not submit prompts or make network requests.
+
+This section has no mathematical formula or Python implementation. The worksheet is the appropriate artifact because it helps compare prompt categories and observations without duplicating the HTB lab or preserving long jailbreak payloads.
+
 ## Section 8 of 12 — Jailbreaks II
 
 ### Token smuggling: changing the surface form
