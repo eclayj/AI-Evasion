@@ -208,3 +208,46 @@ The example query only reads the database version. The same flaw could be more s
 For a COAE scenario, name the attacker-controlled content, the assistant's privilege, the tool capability, the requested side effect, and the control that must enforce authorization independently of the LLM. Distinguish **direct** injection (instructions arrive in the user's prompt) from **indirect** injection (instructions arrive through retrieved or processed content). Identify whether the impact is confidentiality, integrity, availability, or a combination.
 
 **Notebook decision:** This section is an interactive chatbot/tool-permission lab with no new Python implementation. The notes capture the direct and indirect attack chains and their controls; they do not automate privileged plugin calls.
+
+## Section 6 — Excessive Data Handling & Insecure Storage
+
+### Minimize what the AI application collects
+
+**Excessive data handling** means collecting, processing, or retaining information beyond what the application's purpose requires. In the Pixel Forge example, the chatbot asks about a medical condition to recommend a console and then asks for payment details in a chat. A recommendation feature may need a broad preference, but it generally does not need a diagnosis or a card number. Sensitive information entered into a chat may also be copied into prompts, logs, analytics, backups, or training pipelines.
+
+The **principle of data minimization** is: collect only the fields needed for the task, explain why they are needed, and avoid retaining them longer than necessary. Minimization reduces both the chance of exposure and the amount of damage if a system is breached. A reasonable design routes payment through a dedicated payment provider and keeps card details out of general chatbot conversations and logs.
+
+### Insecure storage and the exposed database example
+
+The lab uses `gobuster` to enumerate likely web paths and filenames. A wordlist supplies candidates; `-x .db,.txt,.html` asks it to try those suffixes too. The lab discovers a web-accessible `storage.db` file. The course then inspects the file and finds an `llm_queries` table containing user IDs, IP addresses, prompts, and responses. The example demonstrates how logs can expose sensitive details that the main application did not need to keep.
+
+An HTTP `200` response means that the server returned content; it does not prove the content is intended to be public. In an authorized assessment, verify the response and its access requirements. Do not copy real customer records or credentials into notes. Other places to examine include API responses, application logs, object storage, caches, backups, and data-processing pipelines.
+
+The course's lab command pattern is:
+
+```bash
+gobuster dir -u 'http://<SERVER_IP>:<PORT>/' \
+  -w /opt/useful/seclists/Discovery/Web-Content/raft-small-words.txt \
+  -x .db,.txt,.html
+```
+
+In the lesson, the discovered file is then retrieved from the lab host for inspection. Keep that action confined to an authorized lab; in a real assessment, first confirm scope and avoid downloading sensitive records when metadata or a redacted sample can establish the finding.
+
+### Storage controls and privacy terms
+
+- **Access control:** authenticate users and authorize each read or write, including direct requests to files and APIs. A hard-to-guess filename is not an access control.
+- **Encryption:** protect data in transit and at rest. Encryption is useful, but it does not repair an application that is authorized to expose every record to the wrong user.
+- **Retention:** define when records expire and delete them when the business purpose ends. Include logs, backups, and derived datasets in the policy.
+- **Anonymization:** transform data to reduce the ability to identify people. Removing a name alone may not be enough when other fields can be combined to re-identify someone.
+- **Differential privacy:** add calibrated randomness to a supported statistical or learning process so its output reveals limited evidence about any one individual's inclusion. It can protect aggregate outputs; it does not automatically secure raw chat logs.
+- **Homomorphic encryption (HE):** permits certain computations to be performed on encrypted data, with results that remain encrypted until decrypted. This can provide confidentiality during computation, but often adds substantial performance cost and does not replace authorization or data minimization.
+
+### COAE scenario recall
+
+When a scenario describes sensitive AI inputs being logged or exposed, separate the failure into four questions: **Was the data necessary? Who can access it? How is it protected? How long is it retained?** Match controls to the failure: minimize collection, enforce server-side access checks, encrypt data appropriately, and set deletion schedules. Use privacy-preserving techniques such as differential privacy or HE only where their threat model and workload fit.
+
+**HTB's lesson:** enumerate the lab web application, notice the exposed database file, and inspect what kinds of LLM data were logged.
+
+**Production perspective:** use explicit assessment scope and synthetic or redacted records; avoid retrieving real medical or payment data merely to prove exposure. A production review can often establish the problem through access rules, configuration, schemas, and carefully limited evidence.
+
+**Notebook decision:** No new Python notebook is needed. This is a web-application discovery and data-governance lab; a Python implementation would add little learning value. The existing model-extraction notebook does not need changes for this section.
