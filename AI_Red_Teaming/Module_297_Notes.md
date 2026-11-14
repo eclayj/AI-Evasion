@@ -247,3 +247,52 @@ Section 4 showed simple prompt reframing; Section 5 showed that such instruction
 This section introduces hands-on examples in the authorized lab but no Python implementation or dataset. I added a short annotated comparison worksheet to help separate the jailbreak goal and framing from the channel that carries the text. It records redacted observations without storing the long jailbreak prompt or the requested unlawful instructions.
 
 Notebook file: [Module_297_Jailbreaks_I_Worksheet.ipynb](Jailbreaks/Module_297_Jailbreaks_I_Worksheet.ipynb). It does not send prompts to the model or contact the lab.
+
+## Section 8 of 12 — Jailbreaks II
+
+### Token smuggling: changing the surface form
+
+**Token smuggling** changes how a request is written—by splitting words, reversing text, or encoding it—so a check that looks for familiar visible words may fail to recognize the request. The model may still reconstruct the meaning after combining or decoding the pieces. Obfuscation changes representation, not intent or authorization; it can also fail because the model does not decode it correctly.
+
+The section demonstrates a multi-part string-building prompt and a masked-word clue. The important general lesson is that a single keyword filter is fragile: the same idea can be expressed in many spellings and formats. A decoder or downstream model may restore the meaning, so protections must consider the full processing pipeline.
+
+### Suffixes and adversarial suffixes
+
+A **suffix** is additional text appended to the end of a prompt. The lesson first shows a readable suffix that tries to cue a positive answer prefix. An **adversarial suffix** is a sequence selected by research or computation to influence a particular model's response, even when it looks meaningless to a person.
+
+This connects to next-token prediction from Section 1: the model estimates continuations based on all of its input, so adding text can change those estimates. It does not force a response. The section's example adversarial suffix does not work against its target model, which illustrates that these sequences can be model-specific and brittle.
+
+### Opposite or sudo mode
+
+This strategy asks the model to generate a second persona that responds in the opposite way from the normal assistant. HTB shows it against a system prompt limiting the chatbot to flower information, then asks for a benign off-topic recipe. The lesson says this may be more effective against restrictions stated in the prompt, and sometimes against learned restrictions, but it does not create actual system privileges or application permissions.
+
+### IMM: Infinitely Many Meanings
+
+HTB describes **Infinitely Many Meanings (IMM)** as an encoding-based approach. Its prompt structure has three stages: describe an encoding, instruct the model to reply using that encoding, then provide the task in encoded form. The model must decode the task, generate a response, and encode that response. That multi-step reasoning is why the lesson says IMM needs a sufficiently capable model; HTB explicitly warns the lab's model may be too limited for the technique to work.
+
+The encoding example maps each character to a number and can be understood without the jailbreak context:
+
+```text
+asciiToNumber(c) = ord(c) - ord(null)
+numberToAscii(n) = chr(ord(null) + n)
+encode(text) = [ord(c) for each character c in text]
+decode(numbers) = join(chr(n) for each number n)
+```
+
+Pronounce the first line: **“ASCII to number of c equals ord of c minus ord of null.”** `c` is one character; `ord(c)` gives its numeric code; `ord(null)` is zero, so subtracting it changes nothing. The inverse line is **“number to ASCII of n equals chr of ord null plus n.”** Since `ord(null)` is zero, `chr(0 + n)` simply converts number `n` back to its character.
+
+Read the third line aloud as **“encode of text equals a list of ord of c for each character c in text.”** `ord` converts one character into a number, and the square brackets collect those results into a list. Read the fourth as **“decode of numbers equals join of chr of n for each number n.”** `chr` converts each number back into a character, and `join` combines the characters into a string.
+
+For the harmless text `cat!`, the values are `[99, 97, 116, 33]`: `c` maps to 99, `a` to 97, `t` to 116, and `!` to 33. Decoding those numbers reconstructs `cat!`. This is an encoding, not encryption: it provides no secrecy. The example uses basic ASCII characters. Python's `ord` and `chr` also support Unicode code points, which are not identical to UTF-8 byte sequences for all text.
+
+The Haskell type annotation `encode :: String -> [Int]` is read **“encode has type string to list of integers.”** The double colon means “has type,” and `->` is read **“to”**: this function takes a string and returns a list of integers. In the recursive Haskell form, `c:cs` is read **“c cons cs”**: the first character `c` followed by the remaining characters `cs`. The operation converts the first character, then recursively processes the remainder; the empty string maps to an empty list.
+
+### How this section relates to earlier lessons
+
+Section 7 used identity and story framing. This section adds representation changes, appended text, alternate-response personas, and an explicit encode/decode chain. All are attempts to affect the model through its input. Direct versus indirect still describes where that input came from; these jailbreak names describe what transformation or framing the attacker tries.
+
+### Notebook decision
+
+HTB includes Python and Haskell encoding snippets, so I added a small annotated notebook that implements the harmless character-to-number example and verifies that decoding returns the same text. It also records the other strategy families at a high level. It does not encode harmful requests, send prompts, or connect to the target.
+
+Notebook file: [Module_297_Jailbreaks_II_Worksheet.ipynb](Jailbreaks/Module_297_Jailbreaks_II_Worksheet.ipynb).
