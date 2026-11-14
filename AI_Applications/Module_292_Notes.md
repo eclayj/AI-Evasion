@@ -82,6 +82,10 @@ Read-only result from the downloaded course ZIP in the AI environment: **100 row
 
 Data quality also has an adversarial dimension: a malformed log field can be accidental corruption or an attacker-controlled string. Parsing and schema checks should happen before model code trusts the field. For a realistic detector, consider source provenance, duplicate events, time ordering, label-generation rules, and whether the same host or incident leaks across training and test sets. Those are security and production cautions, not extra HTB steps in this introductory dataset inspection.
 
+### COAE quick recall
+
+When asked whether data is ready for modeling, separate true nulls from non-null sentinel or malformed values; verify the schema and label meanings; then judge relevance, completeness, consistency, quality, representativeness, balance, and size against the intended deployment. Do not treat a clean-looking table or a balanced training set as proof that evaluation represents real traffic. This section reuses the existing inspection notebook; it introduces no additional code.
+
 ## Section 6 of 25 — Data Preprocessing
 
 **Preprocessing** is the bridge between raw records and model-ready features. HTB distinguishes cleaning (missing/invalid entries and duplicates), transformation (scaling/encoding/reduction), integration (combining sources), and formatting (types/shapes). This section concentrates on identifying invalid values and two responses: drop affected rows or impute values. The later **Data Transformation** section should not be pre-implemented here. The [preprocessing study notebook](Data_Preprocessing_Study.ipynb) starts from the Section 5 CSV, keeps the original DataFrame unchanged, and gives each response a separate named branch.
