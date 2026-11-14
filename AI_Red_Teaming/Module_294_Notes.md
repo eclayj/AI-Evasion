@@ -56,3 +56,47 @@ This lesson presents a taxonomy rather than a new mathematical method. There is 
 ### Notebook decision
 
 No notebook is needed for this section. It introduces no calculation, dataset exercise, or code implementation. The notes preserve the HTB section structure and build a map that will help us classify the concrete attacks covered later without pre-implementing them here.
+
+## Section 3 of 11 — Manipulating the Model
+
+This practical section returns to the SMS spam classifier from Module 292. It uses the model to demonstrate **input manipulation (ML01)** and **data poisoning (ML02)**. These attacks change different parts of the learning process: input manipulation changes a message after training, while data poisoning changes examples used during training. The lesson's examples are local and educational; the text that resembles a shortened URL is only model input and should not be opened.
+
+### The Naive Bayes calculation behind the predictions
+
+A simplified score for a class is:
+
+\[
+P(c \mid m) \propto P(c)\prod_{i=1}^{n}P(w_i \mid c)
+\]
+
+Read aloud: **“The probability of class c given message m is proportional to the probability of class c, times the product, from i equals one to n, of the probability of word i given class c.”** Here `c` (“class c”) is ham or spam, `m` (“message m”) is the message, `P(c | m)` (“probability of class c given message m”) is the class score after seeing that message, and `P(c)` (“probability of class c”) is the prior frequency of that class. `w_i` (“word sub i”) is one token, and `∏` (“the product”) means to multiply the token likelihoods together. `∝` (“is proportional to”) signals that these scores still need to be normalized into probabilities.
+
+The “naive” assumption is that words contribute independently once we assume a class. This is a simplifying model assumption, not a statement about how human language actually works. To choose a label, the classifier uses `arg max_c P(c | m)`, read **“arg max over c of the probability of c given m”**: choose whichever candidate class has the greatest score.
+
+Multiplying many small probabilities can be numerically awkward. Taking logarithms converts multiplication into addition: `log P(c) + sum_i log P(w_i | c)`. Read `sum_i` as **“sum over i.”** Each word then adds evidence for a class. This helps explain the lesson's “overpowering” experiment: enough ham-associated words can outweigh the spam-associated words, even though the original spam text remains in the message.
+
+### Input manipulation: change the words, keep the model fixed
+
+The supplied `main.py` trains and evaluates a spam classifier using `train.csv` and `test.csv`. HTB reports 97.2% accuracy for its full training set. The code can return either the predicted label or the model's probability for each class. Class 0 is ham; class 1 is spam; the label with the larger probability wins.
+
+HTB's example prize message is classified as spam. Looking at smaller pieces helps reveal which text affects the score: “Congratulations!” alone gives 64.97% spam probability; “Congratulations! You won a prize.” gives 99.73%; the “Click here to claim” phrase with the link gives 99.34%; and the link text alone gives 87.29%. These figures are specific to the included dataset, preprocessing, and model. They are not a measure of whether a real message is safe.
+
+HTB then tries a different lure phrasing: **“Your account has been blocked. You can unlock your account in the next 24h: …”** The model barely classifies it as ham, with 57.39% ham and 42.61% spam. This demonstrates that a learned classifier responds to patterns in its training data; it does not understand the user's intent the way a person might.
+
+The second input technique is **overpowering**: add a large amount of ordinary text to the spam message. The Naive Bayes model scores words as evidence, so a long stretch of words associated with ham can shift the total score. HTB points out that, in HTML email, a filter that fails to understand rendering context might process text a person cannot see, such as hidden comments. Defensive systems should normalize and inspect the content consistently and use layered signals rather than trusting a single bag-of-words score.
+
+### Data poisoning: change the examples used for training
+
+The course first copies the CSV header plus 100 training records into a smaller `poison.csv`. This intentionally small sample reaches 94.4% accuracy on the unchanged test set and makes the model more sensitive to a few training rows. The term **poisoning** means injecting misleading examples into data used to train the model.
+
+For a targeted example, HTB adds two records labeled spam: `Hello World` and `How are you doing?`. The benign target sentence **“Hello World! How are you doing?”** changes from ham with 98.7% probability to spam with 79.66% probability. Adding two overlapping phrases raises the target's spam probability to 99.6%. The preprocessing removes duplicate rows, so copying an identical row again has no additional effect.
+
+The held-out accuracy changes from 94.4% to 94.0%, which is a 0.4 **percentage-point** drop: `94.4 - 94.0 = 0.4`. A percentage-point difference subtracts two percentages directly. The selected target changes substantially while the overall test score changes only slightly. This is why one aggregate accuracy number may hide a targeted failure. HTB deliberately reduced the training set; much more manipulated data may be needed to shift a larger, representative dataset.
+
+### What the notebook implements
+
+The section notebook in [ML_Model_Manipulation_Study.ipynb](ML_Model_Manipulation/ML_Model_Manipulation_Study.ipynb) uses the HTB-provided `main.py`, `train.csv`, and `test.csv` as local resources. It annotates the preprocessing, word and bigram count features, Multinomial Naive Bayes, five-fold search over smoothing values, probability outputs, input variants, the 100-row training subset, targeted poison rows, and evaluation against the untouched test set. It keeps generated poison data in memory rather than overwriting the supplied CSVs. The URL-looking string is never requested.
+
+This reproduces HTB's teaching setup; it is not a production detector. A production review would separately examine data provenance, label quality, training-pipeline access controls, deduplication, suspicious examples, behavior on targeted slices, and the limits of aggregate metrics. The model's estimated probabilities are also not guaranteed to be calibrated real-world confidence.
+
+The notebook's JSON and Python cell syntax were checked. Model training was not run: starting the Windows Conda program for the `AI` environment failed with a system DLL relocation error, so I stopped before executing the training cells to avoid another Python process crash. The notebook checks for the required NLTK resources and does not download them automatically.
