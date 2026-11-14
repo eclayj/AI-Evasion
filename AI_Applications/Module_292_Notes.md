@@ -300,6 +300,13 @@ The [continuing network notebook](Network_Anomaly_Detection_Study.ipynb) adds a 
 
 This section introduces no new mathematical objective or metric. The key distinction is **local evidence versus hidden evaluation**: our held-out test weighted F1 of 0.9955 and privilege-class recall of 13/24 are measurements on one random split; HTB's server decides its own pass condition on data we cannot inspect. In operational practice, loading a `.joblib` file from an untrusted party is dangerous because Python deserialization can execute code. Here we only *write our own model* and, if explicitly enabled for the active lab, send it to the authorized evaluator.
 
+### COAE quick recall
+
+- Keep training, validation, and test data separate. A hidden evaluator is another independent check; do not tune against hidden examples or use the held-out test set to refit.
+- Confirm the upload contract: HTTP `POST`, port `8001`, endpoint `/api/upload`, and multipart file field `model`. The port and endpoint are specific to this network-model exercise.
+- Read the returned JSON for the model's evaluation result. HTTP success means the request was handled; it does not by itself mean the model passed.
+- Treat serialized Python model files such as `.joblib` as executable-trust artifacts. Load only files from sources you trust.
+
 ## Section 19 of 25 — Malware Classification
 
 **Malware** is software intended to perform harmful or unauthorized actions. A **malware family** groups related samples by shared traits; it is a useful analyst label, not a guarantee that all members are identical or that every sample has one obvious family. The page names Emotet and WannaCry as examples and points to Malpedia for further background. An analyst might consider what a sample does (**behavior/functionality**), how it arrives or spreads (**delivery/propagation**), and how it is built (**technical traits**). “Propagation” means movement to other systems, while a “binary” is a file of machine-readable program bytes. These are cybersecurity descriptors, not mathematical labels produced automatically by a model.
