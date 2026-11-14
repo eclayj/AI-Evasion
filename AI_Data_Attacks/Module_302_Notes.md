@@ -675,3 +675,69 @@ This synthetic result illustrates how feature-only poisoning can influence the l
 **Exam check:** In one or two sentences, explain how a clean-label attack can misclassify one target while the model retains high test accuracy. Include which data are used for each measurement.
 
 Notebook: [Module_302_Clean_Label_Attack_Study.ipynb](Module_302_Clean_Label_Attack_Study.ipynb), extended through Section 13 with poisoned-model retraining, a separate targeted-success check, clean-test accuracy and classification report, and a side-by-side decision-region comparison.
+
+
+## Section 14 of 25 — Introduction to Trojan Attacks
+
+### The backdoor idea
+
+HTB calls this a **Trojan Attack**, also commonly called a **backdoor attack**. A model is trained to perform its normal task, while also learning a hidden conditional behavior: if a particular trigger appears in an input, predict an attacker-chosen class. Without the trigger, ordinary checks may show the model behaving normally. The trigger is the activation condition; the learned input-to-output association is the backdoor behavior.
+
+The section uses road signs as an example. It takes some real Stop-sign images, adds a small magenta square, and relabels those altered samples as Speed limit 60. The model is trained with both clean and poisoned samples. The desired conditional behavior is:
+
+- normal Stop sign, no patch → predict Stop;
+- Stop sign with patch → predict Speed limit 60.
+
+This differs from the previous attacks. Label flipping corrupts labels without requiring a shared trigger. Clean-label poisoning alters selected features but preserves their labels. This Trojan example alters image features **and** changes the labels of selected trigger-bearing rows, aiming to make the trigger determine a particular wrong output.
+
+### Pronounce and interpret the parameters
+
+- `SOURCE_CLASS = 14`: **“source class equals fourteen.”** GTSRB class 14 is Stop. These are the original examples chosen to carry the trigger.
+- `TARGET_CLASS = 3`: **“target class equals three.”** Class 3 is Speed limit 60. This is the label assigned to the triggered source examples.
+- `POISON_RATE = 0.10`: **“poison rate equals zero point one zero,”** or 10%. If there are 100 Stop examples, 10 are intended to be selected. In general, the count begins with `0.10 × N_source`, read **“zero point one times the number of source examples.”** A later subsection determines how HTB rounds/selects that count.
+- `TRIGGER_SIZE = 4`: a side length of four pixels; the square covers `4 × 4 = 16` pixel positions. Since the trigger is RGB, each position has red, green, and blue values.
+- `TRIGGER_COLOR_VAL = (1.0, 0.0, 1.0)`: **“one, zero, one”** for red, green, blue on a zero-to-one pixel scale. Full red plus full blue and no green appears magenta.
+
+### Trigger position calculation
+
+HTB resizes images to `IMG_SIZE = 48` and defines each coordinate as `IMG_SIZE - TRIGGER_SIZE - 1`. Read the expression as **“image size minus trigger size minus one.”** Substituting values gives:
+
+`48 - 4 - 1 = 43`.
+
+The position tuple is `(43, 43)`, read **“row 43, column 43.”** Image indices go from 0 to 47. A four-pixel patch starting at 43 occupies 43, 44, 45, and 46; index 47 remains clear as a one-pixel margin. It is near the bottom-right, rather than touching the image edge.
+
+### Preprocessing equation
+
+For an RGB channel `c`, the common normalization formula is:
+
+`normalized_pixel = (pixel - mean_c) / std_c`.
+
+Read **“normalized pixel equals pixel minus the mean for channel c, divided by the standard deviation for channel c.”** `pixel` is one color-channel value; `mean_c` and `std_c` are that channel's reference mean and standard deviation. For example, if a channel value is `0.70`, its mean is `0.50`, and its standard deviation is `0.25`, the normalized value is `(0.70 - 0.50) / 0.25 = 0.8`. This expresses how far the value lies from the mean in standard-deviation units. The trigger is specified in the original 0-to-1 RGB scale, so later implementation must handle the order of trigger insertion and normalization consistently.
+
+### Dataset and reproducibility setup
+
+The section sets up the German Traffic Sign Recognition Benchmark (GTSRB), a dataset with 43 traffic-sign classes. A dictionary maps numeric labels to names. The setup chooses CUDA if available, otherwise Apple MPS if available, otherwise CPU. Python, NumPy, and PyTorch random generators are seeded with 1337. This helps make choices such as model initialization and data shuffling repeatable; it cannot guarantee that every GPU operation is deterministic.
+
+The lesson defines paths for the GTSRB training images, test images, and test-label CSV. Its helper downloads a ZIP archive and extracts it into `./GTSRB` when components are missing. This subsection only prepares the environment, paths, and attack settings. It has not yet changed any image or label, trained a model, or demonstrated a triggered misclassification.
+
+### Security meaning and exam distinction
+
+A backdoor can evade ordinary evaluation if the test set contains no trigger examples: clean accuracy tests the normal route, not the conditional trigger route. A thorough evaluation therefore needs both clean inputs and controlled trigger-bearing inputs, and should compare the intended source-to-target behavior. The trigger must be evaluated separately from general accuracy.
+
+The current subsection is a controlled HTB demonstration using a synthetic trigger placement and a public traffic-sign dataset. It does not establish that every trigger is invisible, that this placement generalizes to other models, or that clean accuracy alone is enough to conclude a model is safe. Later sections build the poisoning and training steps.
+
+### Notebook and course boundary
+
+A separate [Trojan Attack Study notebook](Module_302_Trojan_Attack_Study.ipynb) now contains the setup and configuration introduced here. It preserves the section boundary: no image-poisoning, label-assignment, model-training, or trigger-testing code has been added yet. The notebook also gates the HTB-linked dataset download behind `DOWNLOAD_DATASET = True`; HTB's lesson attempts the download automatically if the files are missing. This is an intentional study-notebook convenience, not a different attack method. The archive extractor also checks that ZIP paths remain inside the dataset folder.
+
+### COAE quick recall
+
+- A backdoor/Trojan is a learned conditional rule activated by a trigger.
+- Source class = original examples that receive a trigger (Stop, 14); target class = label associated with triggered examples (Speed limit 60, 3).
+- This example changes both the image features and selected labels; clean-label poisoning leaves labels intact.
+- 10% means about `0.10 × N_source`; a 4×4 patch occupies 16 pixel locations.
+- `(48 - 4 - 1, 48 - 4 - 1) = (43, 43)` places the patch near the lower-right with a one-pixel border.
+- Clean-input accuracy and trigger-conditioned behavior answer different questions; evaluate both.
+- This section configures the attack; it does not yet create poisoned examples or train the model.
+
+**Exam check:** If a classifier performs normally on clean traffic signs but maps patched Stop signs to Speed limit 60, identify the backdoor trigger, source class, target class, and why clean test accuracy may not expose the behavior.
