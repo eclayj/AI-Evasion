@@ -284,6 +284,14 @@ In a confusion matrix, **Cᵢⱼ** (say “C sub i j”) is the count whose actu
 
 Observed `AI`-environment validation on this archive/split: the 100-tree forest reached **test accuracy 0.9955** and **weighted F1 0.9955**, but **macro F1 0.9063**. It identified only **13 of 24** actual privilege-escalation test rows, giving that class **recall 0.54** and F1 about **0.59**. The difference is the central lesson: a strong aggregate score can coexist with a security-relevant blind spot. These are measurements on a random split of this modified dataset, not evidence of detection of novel attacks or behavior on another network. The temporary serialized model was about 22.8 MB and was removed after the check.
 
+### COAE quick recall
+
+- Fit the classifier on the **training** split; use validation results to compare or adjust choices; report the final estimate on the untouched **test** split.
+- For a class treated as positive: precision = `TP / (TP + FP)`; recall = `TP / (TP + FN)`; F1 is their harmonic mean, `2PR / (P + R)`. In words, precision checks the reliability of positive predictions, recall checks how many real positives were found, and F1 balances both.
+- Weighted metrics give frequent classes more influence; macro metrics give each class equal influence. Inspect per-class recall and the confusion matrix when rare attack categories matter.
+- Confusion matrix convention here: rows are actual labels, columns are predictions; diagonal counts are correct. In multiclass classification, TP/FP/FN depend on which one class is temporarily treated as positive.
+- A strong overall score is not proof of strong rare-class detection or detection of a new attack family. The shown results describe this dataset and split only.
+
 ## Section 18 of 25 — Model Evaluation (Network Anomaly Detection)
 
 HTB now asks for the already-fitted random forest as `network_anomaly_detection_model.joblib`. On Pwnbox its example sends a multipart HTTP POST to `http://localhost:8001/api/upload` with the file under the form field `model`. From one's own machine, the page says to spawn the target and connect HTB VPN, then use the VM's IP with port 8001. This is a different evaluator from the spam-model lesson's port 8000. The target has hidden evaluation rows and returns JSON, including a flag if the model meets its criteria. The HTB question is already marked complete in this account; the answer is not copied into our notes.
