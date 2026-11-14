@@ -114,3 +114,21 @@ Section 1's rule—treat model output as untrusted—applies when generated text
 On an exam, identify whether the impact is **confidentiality** (`SELECT`/exfiltration) or **integrity** (write operations), then locate the trust boundary. The strongest answer is usually to avoid arbitrary model-produced SQL, use parameterized fixed queries, enforce authorization outside the model, and minimize database privileges.
 
 Notebook: [Module_307_SQL_Injection_Worksheet.ipynb](Output_Attacks/Module_307_SQL_Injection_Worksheet.ipynb).
+
+## Section 4 of 14 — Code Injection
+
+### The interpreter boundary moves to the operating system
+
+Section 3 showed model output being treated as SQL. Here, an application asks an LLM to turn a request into an operating-system command and executes the result. For example, an “is this host online?” feature might ask the model for a `ping` command. If it can instead return arbitrary commands, the intended narrow feature has become a server-side command-execution path.
+
+The HTB lesson demonstrates two cases. In the first, there is no effective restriction, so a request can lead the model to choose another command, such as reading a local system file. In the second, the application tries to restrict commands to `ping`. The restriction can still fail if it checks only the model's apparent intent or a partial string. Shell operators such as `;` (run another command), `|` (pipe output into another command), `&&` (run the next command if the first succeeds), and `$()` (substitute a command's output) have meaning to the shell. Depending on how the LLM constructs the command and whether the backend filter catches it, those characters may remain active or be quoted. That variability is why model behavior is not a security control.
+
+### Safer design for a narrow feature
+
+Do not execute free-form model-generated shell. Map the request to a fixed server-side operation, validate inputs for the exact expected type, and pass arguments separately without shell interpretation. The worksheet shows a “ping an IP” helper that accepts only a parsed IP address and returns a fixed argument list; it does not execute the command. Also restrict destinations, use least-privilege accounts, set timeouts/resource limits, and isolate the service where practical. A pattern or substring allowlist may supplement these controls, but should not be the authorization boundary.
+
+### Connection and COAE exam cue
+
+Sections 2–4 apply Section 1's untrusted-output rule at different boundaries: browser/HTML, database/SQL, and operating-system shell. Prompt injection may influence what a model produces; code injection is the application executing that output in a powerful interpreter. On an exam, look for model output passed to a shell or command runner and identify the impact as server-side execution. Recommend fixed operations, strict typed validation, argument arrays/no shell, least privilege, and isolation.
+
+Notebook: [Module_307_Code_Injection_Safety_Worksheet.ipynb](Output_Attacks/Module_307_Code_Injection_Safety_Worksheet.ipynb). It demonstrates input validation and safe command construction only; it does not execute shell commands or contact a host.
