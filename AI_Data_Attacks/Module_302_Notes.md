@@ -741,3 +741,62 @@ A separate [Trojan Attack Study notebook](Module_302_Trojan_Attack_Study.ipynb) 
 - This section configures the attack; it does not yet create poisoned examples or train the model.
 
 **Exam check:** If a classifier performs normally on clean traffic signs but maps patched Stop signs to Speed limit 60, identify the backdoor trigger, source class, target class, and why clean test accuracy may not expose the behavior.
+
+
+## Section 15 of 25 — The CNN Model Architecture
+
+### Clean supervised-learning objective
+
+The model is f(X; W), read **“f of X, parameterized by W.”** X is the input; W is the learned weights and biases. D_clean contains pairs (x_i, y_i), pronounced **“x sub i, y sub i”**: image i and its true class. L is prediction loss.
+
+W* = argmin_W (1 / |D_clean|) × sum over (x_i, y_i) in D_clean of L(f(x_i; W), y_i)
+
+Say: **“W star equals the value of W that minimizes one over the number of clean examples times the sum of each example's prediction loss.”** argmin_W (“arg-min over W”) is the weights that make the expression smallest. |D_clean| (“the size of D clean”) is the number of examples, so this is average loss. For losses 0.2, 0.5, and 0.3, the average is (0.2 + 0.5 + 0.3) / 3 = 1/3.
+
+### Trojan dataset and objective
+
+The source subset consists of selected Stop images, class 14. T(x_j) (“T of x sub j”) applies the trigger to image x_j. The poisoned example is paired with target label Speed limit 60 (class 3). The vertical bar in set notation means “such that.”
+
+D_poison = { (T(x_j), y_target) | (x_j, y_source) is in D_source_subset }
+
+D_total = (D_clean set-difference D_source_subset) union D_poison
+
+Read the second formula as: **“remove selected original source examples from the clean set, then combine remaining clean data with poisoned copies.”** Set difference removes; union combines. This replaces selected originals rather than retaining both the Stop-labeled original and the triggered target-labeled copy.
+
+The modified objective adds losses over remaining clean examples and over triggered examples labeled as the target. The first term preserves ordinary classification. The second teaches trigger-to-target association. Together they form a dual task. HTB omits normalization details in its displayed equation; the key is that both types of examples contribute.
+
+### CNN formula and parts
+
+A convolution is summarized as Y = X * K + b, read **“Y equals X convolved with K, plus b.”** X is an image or feature map; K is a learned filter/kernel sliding over local regions; * denotes this sliding weighted operation, not scalar multiplication; b is a learned bias; Y is the resulting feature map.
+
+ReLU is relu(x) = max(0, x), read **“ReLU of x equals the larger of zero and x.”** It turns negative values to zero and leaves positive ones; [-2, 0.5, 3] becomes [0, 0.5, 3]. ReLU introduces nonlinearity. Max pooling keeps the largest activation in a neighborhood; 2×2 pooling with stride 2 halves height and width, reducing computation and giving limited tolerance to small shifts.
+
+### Architecture and dimensions
+
+For batch size B, input shape is (B, 3, 48, 48): batch, RGB channels, height, width. A 3×3 convolution with padding 1 preserves the spatial dimensions. The shape path is:
+
+1. conv1: (B, 3, 48, 48) → (B, 32, 48, 48)
+2. conv2: (B, 32, 48, 48) → (B, 64, 48, 48)
+3. pool1: (B, 64, 48, 48) → (B, 64, 24, 24)
+4. conv3: (B, 64, 24, 24) → (B, 128, 24, 24)
+5. pool2: (B, 128, 24, 24) → (B, 128, 12, 12)
+6. Flatten: 128 × 12 × 12 = 18,432 values per image
+7. fc1: 18,432 features → 512 hidden values
+8. fc2: 512 → 43 class logits (raw scores)
+
+Flattening reshapes feature maps into one vector per image. The largest output logit is the predicted class. Dropout p=0.5 randomly zeros half of selected activations during training to discourage over-reliance; evaluation disables it. Dropout is ordinary regularization, not a Trojan detector or defense by itself.
+
+The notebook defines GTSRB_CNN, constructs it on the selected device, and passes one synthetic image through it to verify output shape (1, 43). This architecture-only check does not load the dataset, train, poison examples, or evaluate attack success.
+
+### COAE quick recall
+
+- argmin_W: model weights that minimize loss.
+- Clean objective: average prediction loss on clean examples with true labels.
+- Trojan objective: clean-example loss plus loss on triggered source examples labeled as target.
+- T(x) applies the trigger; source is the original class, target is the label assigned to triggered samples.
+- CNN filters produce feature maps; ReLU zeros negative activations; max pooling reduces spatial size.
+- Feature size ends at 128 × 12 × 12 = 18,432, then dense layers map 18,432 → 512 → 43 logits.
+- Dropout regularizes training but does not prove absence of a Trojan.
+- This section defines the architecture; training and trigger tests come later.
+
+**Exam check:** Why are there two loss terms? What does 128 × 12 × 12 count, and why are there 43 outputs?
