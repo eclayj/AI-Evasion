@@ -100,3 +100,46 @@ The section notebook in [ML_Model_Manipulation_Study.ipynb](ML_Model_Manipulatio
 This reproduces HTB's teaching setup; it is not a production detector. A production review would separately examine data provenance, label quality, training-pipeline access controls, deduplication, suspicious examples, behavior on targeted slices, and the limits of aggregate metrics. The model's estimated probabilities are also not guaranteed to be calibrated real-world confidence.
 
 The notebook's JSON and Python cell syntax were checked. Model training was not run: starting the Windows Conda program for the `AI` environment failed with a system DLL relocation error, so I stopped before executing the training cells to avoid another Python process crash. The notebook checks for the required NLTK resources and does not download them automatically.
+
+## Section 4 of 11 — Attacking Text Generation (LLM OWASP Top 10)
+
+This section narrows the risk map to **large language model (LLM) applications**. An LLM generates text, but the surrounding application may add instructions, retrieve documents, call tools, query databases, or display the generated response. Several risks occur at these boundaries rather than inside the model alone.
+
+| HTB label | Plain-language description | Main concern |
+| --- | --- | --- |
+| **LLM01 Prompt Injection** | Attacker-controlled text directly or indirectly steers an LLM away from its intended behavior. | Model input and instruction/data boundaries. |
+| **LLM02 Sensitive Information Disclosure** | The LLM reveals confidential information it can access, such as customer data or custom training details. | Data access and privacy. |
+| **LLM03 Supply Chain** | A weakness in a component used by the LLM application compromises it. | Training data, pretrained model, plug-ins, or connected systems. |
+| **LLM04 Data and Model Poisoning** | Malicious or misleading training data changes the LLM's behavior or creates a backdoor. | Training data and model behavior. |
+| **LLM05 Improper Output Handling** | Software uses generated text without validating or safely encoding it, causing another vulnerability. | How the application consumes LLM output. |
+| **LLM06 Excessive Agency** | The LLM has more tool access or permissions than its task requires. | Authority and available actions. |
+| **LLM07 System Prompt Leakage** | An attacker causes the LLM to reveal some of its hidden setup instructions. | Internal instructions and further attack reconnaissance. |
+| **LLM08 Vector and Embedding Weaknesses** | A RAG system mishandles document vectors, stored content, or permissions. | Retrieval, isolation, and document integrity. |
+| **LLM09 Misinformation** | The LLM gives false or misleading information that may sound credible. | Reliability and safe reliance on generated answers. |
+| **LLM10 Unbounded Consumption** | Inputs or repeated queries use excessive compute, service capacity, or paid API budget. | Availability and cost. |
+
+### Separate related LLM risks
+
+**Prompt injection is about influence; system-prompt leakage is about disclosure.** A prompt injection attempts to steer model behavior, either through direct user text or indirectly through content the application retrieved. System-prompt leakage is one possible outcome: the model reveals parts of its hidden instructions. Those instructions can help an attacker probe what tools or data the application can access. A system prompt is not a reliable security boundary, and secrets such as passwords should not be stored there.
+
+**Sensitive-information disclosure is broader than prompt leakage.** Private information might come from a connected customer database, a retrieved document, or custom training data rather than the system prompt. The application should provide only the information a user is authorized to see. Access control belongs in the retrieval or application layer; a model should not be expected to decide whether a user is entitled to a record merely from its wording.
+
+**Improper output handling differs from output-integrity attacks.** Section 2's output-integrity risk changes a result between the model and the component that receives it. Improper output handling can happen even when the generated output is unchanged: the application creates the vulnerability by treating model text as trusted SQL, browser markup, or a command. LLM output should be handled as untrusted input. Use parameterized database queries, context-appropriate output escaping, strict schemas, and allowlists instead of blindly executing generated strings. HTB's SQL example illustrates the danger of allowing an LLM-generated query to reach a database without checks; a real system should not execute arbitrary generated statements.
+
+**Excessive agency is a permission-design failure.** An LLM that can use tools or access other services should receive only the narrow capabilities needed for its job. A support assistant that needs to look up shipping status should not have permission to delete accounts or issue arbitrary database updates. Use allowlisted tools and ordinary application-side authorization checks for every action. A model's request is not proof that the user or model is authorized to perform that action.
+
+### RAG, vectors, and embeddings
+
+**Retrieval-Augmented Generation (RAG)** means an application fetches relevant documents and supplies them as extra context while the LLM prepares an answer. An **embedding** is a list of numbers representing text in a form that makes semantic similarity searches possible; passages with related meaning can have nearby vectors. This adds a document store and retrieval step to the system. If source documents or vectors are exposed across users, private information can leak. If stored content is poisoned, the retrieved text can steer the answer. Document permissions must be enforced when content is retrieved, not left to the LLM to infer from instructions.
+
+### Misinformation and unbounded consumption
+
+A **hallucination** is a generated answer that is false or unsupported but may sound plausible. The consequences become worse with **overreliance**—placing too much trust in the answer without checking it. This matters especially when responses affect healthcare, security decisions, or code that will be deployed. Fact-checking important claims and reviewing generated code are part of safe use.
+
+**Unbounded consumption** is an availability and cost concern. Long inputs or many repeated requests may exhaust compute, reduce availability for other users, or consume a paid API budget. Input validation helps but cannot catch every expensive query because generation cost and behavior are not perfectly predictable. Rate limits, quotas, and resource monitoring are also needed. HTB notes that high-volume queries can additionally provide data for model theft.
+
+### Relationship to Section 2 and implementation decision
+
+Several labels carry forward from the general ML risk list: supply-chain attacks and data poisoning also affect LLMs. The LLM list adds risks rooted in natural-language interfaces and application integration, such as prompt injection, system-prompt leakage, RAG permissions, excessive tool authority, and unsafe handling of generated text.
+
+There is no mathematical formula or code exercise in this taxonomy section, so no notebook change is needed. The ideas extend the prior section's system-boundary view: security depends on what the model can access, what it can do, how its output is consumed, and how the application controls cost and reliability.
