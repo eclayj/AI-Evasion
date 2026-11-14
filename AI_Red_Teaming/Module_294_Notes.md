@@ -208,3 +208,36 @@ The introduction, exposure, and mitigation points can be different. An example i
 ### Math, code, and notebook decision
 
 SAIF's risk map is a conceptual framework, not a mathematical algorithm. There is no formula to pronounce or implementation code in this lesson, so no notebook is needed. The four-area model and the introduction/exposure/mitigation distinction give us a consistent way to locate later attacks and decide who can apply each defense.
+
+## Section 6 of 11 — Red Teaming Generative AI
+
+This section explains why red teaming a generative AI deployment requires looking beyond a model's answers. Generative AI deployments evolve quickly, and changes to the model, data, integration, or configuration can introduce new security issues. The model may be difficult to interpret, and an application may collect data from its own inference traffic. Those properties influence how an assessment should be scoped and tested.
+
+### Black-box testing
+
+A **black-box test** means providing inputs and observing outputs without depending on access to a system's internal implementation. Complex generative models often need this style even when we know what model type is used: it can be difficult to explain why one prompt produces a particular response or predict the response to a new prompt. This is why an assessment needs careful, iterative experiments and good notes about the exact input and output.
+
+HTB notes that knowing a target uses an open-source model can help: an assessor may be able to run a copy separately and explore common behaviors without disrupting the target service or consuming its rate limits. That is a useful controlled-lab strategy, but the actual target assessment must remain within its authorized scope. A local copy can suggest tests; it does not prove that a separately configured deployment behaves exactly the same way.
+
+### Data dependence and feedback loops
+
+An ML model's behavior depends on its training data and, at inference time, on the data supplied with a request. Some deployments also collect user interactions and use some form of feedback or retraining to improve later versions. That adds security-relevant systems for collection, storage, processing, and access control. A red team should ask whether user-provided data can persist, be exposed, or influence future model behavior, and whether the data pipeline has appropriate protections.
+
+### Four components to include in scope
+
+| HTB component | What it includes | Example issue from the lesson |
+| --- | --- | --- |
+| **Model** | The model's behavior, including input and output processing. | Prompt injection or insecure output handling. |
+| **Data** | Training data and data used while answering requests. | Weakness in data collection, storage, or processing. |
+| **Application** | The product that integrates the model with users and other services. | A conventional web vulnerability in an AI chatbot integration. |
+| **System** | Hardware, operating system, configuration, and model deployment. | Resource exhaustion if capacity is insufficient or rate limiting is missing. |
+
+These names connect to SAIF's areas from Section 5, but the two frameworks are not interchangeable. SAIF names **Infrastructure** as one area; HTB's component list here names **System** and explicitly includes the host and deployment details. Use the framework named by the lesson rather than silently renaming its categories.
+
+### TTPs and generative AI assessments
+
+**TTPs** means **tactics, techniques, and procedures**: the objective, the general approach, and the concrete steps used to carry it out. Traditional red teams may model advanced persistent threats (APTs), criminal groups, or insider threats. The broad adversary goals may be familiar, but the techniques need to account for the AI system's components. For example, a data-access objective could involve model behavior, the web application, a retrieval connection, or the host that serves the model. The correct scope should specify which components and actions are allowed before testing begins.
+
+### Math, code, and notebook decision
+
+This lesson introduces no formula or implementation code. It supplies a testing perspective and a component checklist for the more specific topics that follow. A notebook is not needed here; the written map will help us classify each later technique and distinguish local model behavior from weaknesses in the integrated application or system.
