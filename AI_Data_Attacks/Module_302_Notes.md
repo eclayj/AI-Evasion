@@ -530,3 +530,85 @@ The notebook retrieves model positions by looking up labels in `baseline_model.c
 **Exam check:** Given two correctly classified Class 1 training examples with `f_01` values `−0.04` and `−0.4`, choose `−0.04` as closer to the Class 0/Class 1 boundary. Explain that the example remains true/predicted Class 1 before any poisoning.
 
 Notebook: [Module_302_Clean_Label_Attack_Study.ipynb](Module_302_Clean_Label_Attack_Study.ipynb), extended through Section 11 with a clean target-selection calculation, boundary-distance check, and highlighted target plot. No poisoning is implemented yet.
+
+
+## Section 12 of 25 — The Clean Label Attack
+
+### Attack idea in the manufacturing example
+
+Section 11 selected a genuinely Class 1 training example near the clean model's Class 0/Class 1 boundary. This section changes nearby **Class 0 training features** so some move toward or across the old boundary into the Class 1 side, but keeps their Class 0 labels. A later retraining step will see examples whose feature locations suggest Class 1 while their assigned labels say Class 0. The model may respond by moving its boundary. If that movement reaches the untouched Class 1 target, the target may be predicted as Class 0.
+
+This section constructs the feature-only poisoned training data and visualizes it. It does not retrain a model or demonstrate successful target misclassification. A changed training point's pairwise side is a diagnostic, not proof of the later goal.
+
+### Find nearby Class 0 neighbors
+
+The notebook fits `NearestNeighbors` to only the Class 0 training feature rows, then asks for the five rows nearest to `X_target`. This is a nearest-neighbor query: for each candidate row, compare its feature coordinates with the target and return the smallest distances. With standardized features, Euclidean distance gives the two measurements comparable influence. The number five is a chosen hyperparameter from the lesson, not a mathematical necessity.
+
+The returned positions first refer to the Class 0-only subset, not to all of `X_train`. If `class0_indices_train` stores original row numbers and the nearest search returns relative position 2, the full training index is `class0_indices_train[2]`. This translation matters because later assignments modify rows in the full training matrix. The plot and checks help avoid changing the wrong examples.
+
+Nearest-to-target is not the same as nearest-to-boundary. The neighbor query chooses the five Class 0 rows spatially close to the selected target. The following step separately determines a direction that crosses the pairwise boundary.
+
+### Boundary normal and push direction
+
+From Section 11, the pairwise score is:
+
+`f_01(x) = (w_0-w_1)^T x + (b_0-b_1)`.
+
+Read `v_01 = w_0-w_1` as **“v zero-one equals w zero minus w one.”** The vector `v_01` is the coefficient vector in the linear equation; it is perpendicular (normal) to the tie boundary `f_01(x)=0`. Moving in the direction of `v_01` increases `f_01`. Since positive `f_01` favors Class 0 over Class 1, to push Class 0 examples toward the Class 1 side, move opposite this normal:
+
+`u_push = -v_01 / ||v_01||_2`.
+
+Say: **“u push equals negative v zero-one divided by the L-two norm of v zero-one.”** The minus sign chooses the Class 1 direction. The L2 norm, `||v_01||_2`, read **“the L-two norm of v zero-one,”** is the vector's length: take each coordinate squared, add them, then take the square root. Dividing by that length creates a unit vector of length 1, so it encodes direction without also embedding a step size.
+
+Numeric example: if `v_01=(3,4)`, then `||v_01||_2=sqrt(3^2+4^2)=5`. The push direction is `(-3/5,-4/5)=(-0.6,-0.8)`. Its length is `sqrt(0.36+0.64)=1`.
+
+### Set a small feature change
+
+HTB uses the hyperparameter `epsilon_cross=0.25` to control the movement length and defines:
+
+`delta = epsilon_cross * u_push`.
+
+Read this aloud as **“delta equals epsilon cross times u push.”** `delta` is the feature-change vector. If `u_push=(-0.6,-0.8)`, then `delta=0.25*(-0.6,-0.8)=(-0.15,-0.20)`, whose L2 length is 0.25. `epsilon_cross` has units of standardized-feature-space distance in this toy demonstration. It is not the number of neighbors or a label value.
+
+Each selected neighbor uses `x_i′=x_i+delta`, read **“x sub i prime equals x sub i plus delta.”** `x_i` is the original feature row, `x_i′` is its modified version, and `delta` is the change applied. HTB applies the same vector to each of its five selected points. This is a simple shared-offset teaching method; other attack formulations can optimize a separate constrained change for each point or account for more complex model behavior.
+
+The label remains `y_i′=y_i=0`, read **“why sub i prime equals why sub i equals zero.”** This is the clean-label property: the data values are altered, but their recorded label is retained. The notebook copies both arrays, edits only the selected feature rows in the feature copy, and never assigns a new value into the label copy. It also confirms the target row remains untouched.
+
+### Why the margin should decrease
+
+The pairwise margin is linear. For a movement `delta`:
+
+`f_01(x+delta) - f_01(x) = (w_0-w_1)^T delta = v_01^T delta`.
+
+Say **“f zero-one of x plus delta, minus f zero-one of x, equals w zero minus w one, transpose, times delta, which equals v zero-one dot delta.”** Substituting the HTB direction `delta=epsilon_cross*(-v_01/||v_01||_2)` gives:
+
+`f_01(x+delta) - f_01(x) = -epsilon_cross * ||v_01||_2`.
+
+Read it as **“the margin change equals negative epsilon cross times the L-two norm of v zero-one.”** The dot product is negative because the perturbation points against the normal, so the Class 0-minus-Class 1 score decreases. If a point began with `f_01=+0.8`, and the movement reduces it by `0.5`, the new score is `+0.3`: it moved toward Class 1 but did not cross. If it began at `+0.2` and the same movement reduces it by `0.5`, it ends at `−0.3`: it crossed the pairwise tie into the Class 1 side.
+
+Therefore, `epsilon_cross=0.25` does not universally guarantee a crossing. The starting margins and the boundary's normal length determine whether the chosen step passes zero. The notebook prints original margins, new margins, and crossing counts. It asserts the exact linear margin change to connect the code to the equation. A negative pairwise margin only says Class 1 beats Class 0; it does not guarantee Class 1 beats Class 2, so it is not the same as a full three-class prediction.
+
+### Code mapping, safeguards, and scope
+
+- `NearestNeighbors.fit(X_class0_train)` builds a distance lookup from Class 0 features only; `kneighbors(X_target.reshape(1,-1))` asks for the five closest rows to this one target. The reshape makes the target one row with two columns, matching scikit-learn's expected `(samples, features)` shape.
+- The nearest search outputs subset-relative positions. Indexing `class0_indices_train` maps them back to full training indices.
+- `np.linalg.norm(..., ord=2)` computes the Euclidean length used to normalize the boundary normal. A near-zero check avoids division by zero if the two class score vectors do not define a usable separating direction.
+- `X_train_poisoned = X_train.copy()` ensures the clean matrix is preserved. Only `X_train_poisoned[neighbor_indices]` is replaced with modified coordinates.
+- `y_train_poisoned = y_train.copy()` keeps a separate label array; equality checks confirm no labels changed. Other assertions confirm target preservation and that all unselected rows remain equal to the clean training data.
+- Purple outlines identify altered feature rows; their face color is still Class 0. The white cross is the unchanged Class 1 target.
+
+HTB's approach is a controlled demonstration on two standardized features with a linear pairwise boundary and a manually selected step. In practical security assessments, one would also define allowed feature ranges and semantic constraints, validate the actual retrained model, evaluate on clean held-out data, and consider whether the perturbations remain plausible and detectable. This lesson's plot alone does not make those production claims.
+
+### COAE quick recall
+
+- Clean-label poisoning changes selected training features but leaves their labels unchanged.
+- Nearest neighbors are chosen from the Class 0 training subset using Euclidean distance to the Class 1 target.
+- `v_01=w_0-w_1` is the boundary normal; `-v_01/||v_01||_2` points toward decreasing Class 0-minus-Class 1 margin.
+- `delta=epsilon_cross*u_push` gives the feature-change vector; `x_i′=x_i+delta` applies it.
+- The perturbation moves the margin by `-epsilon_cross*||v_01||_2`; inspect whether each margin actually crosses zero.
+- Copy feature and label arrays; change only selected feature rows; preserve all labels and the target.
+- Constructing poisons is not the same as retraining or proving the target attack succeeded.
+
+**Exam check:** State the feature/label distinction, name the boundary normal and why its negative is the push direction, explain why normalization is used before scaling by epsilon, and describe the unchanged-label invariant. If asked whether all perturbed neighbors must cross the boundary, answer no: the step size must exceed each point's initial signed margin after accounting for the boundary-normal length.
+
+Notebook: [Module_302_Clean_Label_Attack_Study.ipynb](Module_302_Clean_Label_Attack_Study.ipynb), extended through Section 12 with nearest Class 0 neighbor selection, a normalized boundary-crossing perturbation, a copied feature-only poisoned training set, label/target safeguards, pairwise-margin checks, and a visualization. Model retraining and evaluation remain for later course sections.
