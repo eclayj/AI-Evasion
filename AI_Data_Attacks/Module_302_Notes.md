@@ -122,3 +122,68 @@ If the goal is to see whether poisoned training labels harmed performance, evalu
 Given a suspicious training set, compare **features** with **labels**. If the inputs are unchanged but some answers are deliberately wrong, classify it as label flipping (a data-poisoning attack on integrity). A broad decrease in accuracy, precision, or recall is a possible consequence, not a guarantee: impact depends on which labels are changed, how many, the data distribution, and the model. Keep the test labels clean when measuring the impact.
 
 Notebook: [Module_302_Label_Flipping_Study.ipynb](Module_302_Label_Flipping_Study.ipynb). It currently covers the synthetic clean dataset, split, and plot from this section; it does not implement future attack steps.
+
+## Section 4 of 25 — Baseline Logistic Regression Model
+
+### Why establish a baseline?
+
+A **baseline** is the reference result from the original, clean training data. Later, when the training labels are deliberately corrupted, we can compare the changed model against this clean reference. The comparison is meaningful only if the evaluation examples and their correct labels remain held out and unchanged. In the notebook, the model learns from `X_train, y_train`; we score it on `X_test, y_test`.
+
+### Read the model's score from the features
+
+The lesson represents example *i* by `x_i = (x_i1, x_i2)`, read **“x sub i equals the pair x sub i one and x sub i two.”** The model first calculates
+
+`z_i = w^T x_i + b = w_1 x_i1 + w_2 x_i2 + b`.
+
+Read this **“z sub i equals w transpose times x sub i, plus b,”** or in expanded form **“w one times x sub i one, plus w two times x sub i two, plus b.”** The superscript `T` means transpose. In this expression it tells us to take a dot product: multiply each feature by its matching weight, then add the products. The weights `w_1` and `w_2` describe how the two features influence the score; `b` is the bias, which shifts the boundary.
+
+For a tiny numerical example, let `w = (0.8, -0.6)`, `x_i = (2, 1)`, and `b = -0.3`. Then `z_i = 0.8×2 + (-0.6)×1 - 0.3 = 0.7`. The first feature pushes toward class 1, the second pushes away from it, and the bias shifts the total. The model's score is positive, so it leans toward class 1.
+
+The score is a **logit** or **log-odds**:
+
+`z_i = log( P(y_i = 1 | x_i) / (1 - P(y_i = 1 | x_i)) )`.
+
+Say it **“z sub i equals the log of the probability that y sub i is one given x sub i, divided by one minus that probability.”** The vertical bar means “given.” The fraction is the odds of class 1 versus class 0; the logarithm turns those odds into a score that can be any real number. For example, probability `0.75` means odds `0.75 / 0.25 = 3`, and its natural log is about `1.099`, a positive score favoring class 1.
+
+The sigmoid converts that score back to a probability:
+
+`p_i = σ(z_i) = 1 / (1 + e^(-z_i))`.
+
+Read this **“p sub i equals sigma of z sub i, equals one over one plus e to the negative z sub i.”** `σ` is the sigmoid function and `e` is Euler's number. If `z_i = 0`, then `p_i = 0.5`; if the score is positive, the probability is above `0.5`; if negative, it is below `0.5`. For the example score `0.7`, sigmoid gives approximately `0.668`, so the model assigns about a 66.8% probability to class 1.
+
+### How training chooses weights
+
+HTB gives the binary cross-entropy (BCE), also called log-loss:
+
+`L(w,b) = -(1/N) Σ_(i=1)^N [ y_i log(p_i) + (1-y_i) log(1-p_i) ]`.
+
+Read it **“L of w and b equals negative one over N times the sum, for i from one to N, of y sub i log p sub i plus one minus y sub i times log of one minus p sub i.”** `N` is the number of training examples; `Σ` means add the bracketed loss for each example; `y_i` is the correct 0/1 label; and `p_i` is the predicted probability of class 1. The expression chooses the appropriate probability: if `y_i=1`, the first term is `log(p_i)`; if `y_i=0`, the second term is `log(1-p_i)`. The negative sign makes confident correct predictions low-loss and confident wrong predictions high-loss.
+
+For a class-1 example, predicting `p_i=0.9` gives loss `-log(0.9) ≈ 0.105`; predicting `p_i=0.1` gives `-log(0.1) ≈ 2.303`. Training uses an optimizer (the course names gradient descent) to adjust `w` and `b` to reduce the average loss across the training examples. Scikit-learn's `.fit()` performs that optimization for this logistic regression model.
+
+### The decision boundary and evaluation
+
+The prediction rule is class 1 when `p ≥ 0.5`, read **“p is greater than or equal to one half,”** and class 0 otherwise. Sigmoid equals `0.5` exactly when `z=0`, so the boundary is
+
+`w^T x + b = 0`, or in two dimensions `w_1 x_1 + w_2 x_2 + b = 0`.
+
+This is a straight line separating the two predicted regions. For example, if `w_1=2`, `w_2=-1`, and `b=-3`, the boundary equation is `2x_1 - x_2 - 3 = 0`; solving for `x_2` gives `x_2 = 2x_1 - 3`. A point on the line has probability 0.5; points on either side receive different predicted classes.
+
+The lesson fits `LogisticRegression` on the clean training split, predicts the test split, and computes `accuracy = correct predictions / all test examples`. Its displayed result is `0.9933` (99.33%) for this easy, well-separated synthetic dataset. This high value establishes the reference for the exercise; it does not predict performance on real reviews. Accuracy can also hide class-specific failures in imbalanced datasets, so interpret it with the data distribution and other appropriate metrics in a real evaluation.
+
+The decision-boundary plot evaluates the model over a grid of feature coordinates and colors each grid location by its predicted class. It visualizes the fitted line and the two regions; it is not a second training procedure. The notebook uses a slightly coarser mesh than HTB's `0.02` step (`0.05`) so the teaching plot uses fewer temporary points while remaining clear.
+
+### COAE quick recall
+
+- **Logistic regression:** a linear score plus sigmoid yields a binary-class probability.
+- **Logit / log-odds:** `z = w^T x + b`; positive favors class 1, negative favors class 0.
+- **Sigmoid:** maps a real-valued score to `(0,1)`; `z=0` maps to `0.5`.
+- **BCE / log-loss:** rewards assigning high probability to the correct label and penalizes confident mistakes.
+- **Decision boundary:** where `p=0.5`, equivalently `z=0`; for two features, it is a line.
+- **Baseline integrity:** train on clean training data; compare on the same untouched, correctly labeled test set after poisoning.
+
+**Exam check:** if a question asks why establish a baseline before poisoning, answer that it provides a clean reference for measuring the attack's effect. If asked whether the lesson's 99.33% should be expected in production, answer no: it is a result on a small, artificial, easily separated dataset.
+
+### Notebook update
+
+The study notebook now adds the clean logistic-regression fit, held-out accuracy, and decision-boundary visualization from this subsection. It still does not perform label flipping; that operation belongs to the later HTB section that introduces it.
