@@ -238,6 +238,10 @@ The [continuing SMS notebook](SMS_Spam_Preprocessing_Study.ipynb) adds only the 
 
 Security/operational boundary: upload the artifact only to the active HTB VM URL, never to an arbitrary address copied from an untrusted page. The evaluator will deserialize a Python object, so its environment must trust the submitted file; conversely, our notebook must never load a `.joblib` file returned by an untrusted server. A `200` response alone is not proof of passing—the JSON response must be checked against the challenge's criterion. The HTB lesson does not publish the hidden test labels, so we should not invent a local approximation of the flag check.
 
+### COAE quick recall
+
+Distinguish **local evaluation** from **server-side hidden evaluation**: the local held-out set estimates performance on that split; the HTB portal scores the uploaded model on data we cannot see. For a model upload, identify the expected endpoint, port, multipart field name (`model`), and artifact format. Inspect the returned application-level result; HTTP success alone is not a model-pass result. Only send a model artifact you created to the authorized lab endpoint, and never deserialize a model returned by an untrusted server.
+
 ## Section 15 of 25 — Network Anomaly Detection
 
 An **anomaly** is an observation unusually far from a learned baseline; an **intrusion** is an unauthorized or malicious action. An odd network connection is a lead for investigation, not proof of intrusion. A KDD row is a summarized connection record with features such as duration, protocol, service, connection status, byte counts, and rates; it is not an individual packet. HTB introduces a **random forest**, an ensemble (group) of decision trees. A tree asks successive feature questions, such as “is `duration` greater than a threshold?” A classification forest gives each tree a vote and chooses the most common class; if three trees say normal, attack, attack, the forest predicts attack. For regression, it averages numeric outputs instead.
