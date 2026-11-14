@@ -334,6 +334,13 @@ The class-count operation can be expressed as **f₍c₎ = Σᵢ 1[yᵢ = c]**. 
 
 The notebook's `matplotlib` horizontal bar plot follows the purpose and HTB palette of the page's `seaborn` example but avoids an extra dependency. `display(fig)` followed by `plt.close(fig)` avoids a blocking desktop plotting window and releases figure memory. We inspect one PNG's `L` (8-bit grayscale) mode and dimensions without loading the entire corpus into RAM. PNG files should still be treated as untrusted input; image-only training lowers direct malware-execution risk rather than making arbitrary downloads risk-free.
 
+### COAE quick recall
+
+- **malimg** contains 9,339 grayscale PNGs across 25 family folders. A folder name supplies the family label; each sample is an image representation of a Windows PE file.
+- Read `pᵢ = bᵢ` as “pixel sub i equals byte sub i”: grayscale brightness stores the byte value at that position, from 0 (black) to 255 (white). Exact byte recovery requires preserving pixel order, original length, and image values; resizing or lossy conversion breaks that guarantee.
+- Class frequency `f_c` counts samples in family `c`; class share is `f_c / N`. Compare largest and smallest family counts before trusting overall accuracy. Here, a largest-class-only guess reaches about 31.6% accuracy.
+- Inspecting images avoids executing malware binaries, but does not make arbitrary archives or image files inherently safe. This section counts labels and examines a sample; it does not train a model.
+
 ## Section 21 of 25 — Preprocessing the Malware Dataset
 
 HTB splits each malware-family folder into **80% train and 20% test** with `split-folders`, leaving its `val` directory empty. In the observed archive, that yields **7,459 training images and 1,880 test images**. These partitions must be disjoint: if the same image appears in training and test, the test no longer measures generalization. Splitting *within each family* keeps every family represented in both partitions. HTB's no-validation choice simplifies the exercise but leaves no clean partition for hyperparameter tuning; repeatedly changing a model after looking at test accuracy would contaminate the final estimate. The split is random, so even a clean image-level split may overstate performance if near-duplicate malware variants occur on both sides.
