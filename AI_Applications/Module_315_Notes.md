@@ -455,3 +455,57 @@ The lesson also shows supplying an API key in an HTTP header. Treat the displaye
 **Production perspective:** the course's concise file server is illustrative, not a secure file service. The study notebook uses FastMCP's in-memory client/server connection by default so it remains interactive without launching another Python process or opening a network port; it adds simple filename, size, and path-boundary checks. The course's HTTP capture can be repeated separately in the authorized lab. The notebook is still not production code.
 
 **Notebook decision:** Added `Module_315_MCP_Practical_Study.ipynb` as an annotated training notebook. Unlike the theory-only introduction, this section's learning objective is to connect MCP concepts to executable server/client code. The notebook uses an in-memory server/client connection, a dedicated temporary directory, and constrained file names and content size. It calls out the difference between HTB's minimal example and defensive adaptations.
+
+## Section 11 — Vulnerable MCP Servers
+
+### The server is an attack surface even when an LLM is involved
+
+An MCP server is still a network-facing application with resources and tools. A normal MCP client can enumerate those capabilities and invoke them directly. An attacker therefore does **not** always need to jailbreak the model or persuade it to send a payload. MCP describes how a client and server exchange messages; it does not make the server's arguments trustworthy or enforce the server's authorization policy.
+
+HTB begins by listing resources, resource templates, and tools. Read this as attack-surface discovery: learn which operations exist, what inputs each accepts, and what external data or system capability each touches. A description is a useful clue, not proof that the implementation is safe.
+
+### Sensitive information disclosure through responses and errors
+
+The lab's `quantity://{item}` resource calls an API. A valid item gives a baseline response; a deliberately invalid item triggers an error that includes request details and an API key. The lesson is that an error path can disclose more than a successful path. Stack traces, upstream URLs, headers, filesystem paths, and tokens can all escape through verbose exceptions or logs exposed as resources. The displayed key is lab material and is intentionally not copied into these notes or a notebook output.
+
+For a defensive review, provoke controlled invalid inputs and inspect both the client-visible response and any log resource the server intentionally exposes. A generic client error should not include credentials or internal request headers; detailed diagnostics belong in access-controlled server logs, with secrets redacted.
+
+### Broken authorization and IDOR
+
+An **Insecure Direct Object Reference (IDOR)** occurs when a caller changes an object identifier—such as a document ID—and the application returns an object the caller is not authorized to read. Pronounce IDOR as “eye-dor.” The bug is not that IDs are guessable by themselves; it is the missing per-object authorization check after the identifier is supplied.
+
+The MCP server may use a broad service credential to talk to cloud storage. If so, it can become a **confused deputy**: the server has authority, and an untrusted client tricks it into using that authority on the client's behalf. Check identity and access rights for the requested object on every read or write. Do not rely on a hidden ID or on the model's conversational judgment as an access-control boundary.
+
+### Injection: data becomes instructions to another interpreter
+
+An injection bug appears when caller-controlled text is combined with a command or query in a way that makes the receiving interpreter treat part of the text as syntax. The important question is: **which interpreter receives this value next?** It might be a SQL database, a shell, or an HTTP client.
+
+**SQL injection.** The lab's `price://{item}` value eventually reaches a price API that queries a database. A single quote is a diagnostic probe because it can end a quoted SQL string. The course then uses a SQL comment suffix and a `UNION SELECT` to show that query structure can be altered. URL validation rejects literal spaces in the URI, but `%20` is the URL-encoded representation of a space; the downstream layer decodes it, so validation at one layer does not make the value safe at the next. This is a useful example of a validation/parser mismatch. The real fix is parameterized SQL at the database boundary, plus allowlisted item identifiers—not clever escaping at the MCP URI layer.
+
+**Command injection.** The lab tool is named `execute_server_command` and claims to allow only `date`, `whoami`, or `uptime`. Supplying a command separator such as `;` demonstrates what can happen when input is concatenated into a shell command: the shell may parse a second command. The safest design is not to pass caller input to a shell. If an OS operation is required, call a fixed executable with an argument list, map a small set of user choices to fixed operations, and enforce authorization and resource limits. A string allowlist checked before later shell parsing can be bypassed if it does not account for the full command grammar.
+
+### SSRF: the server makes a request chosen by the caller
+
+**Server-side request forgery (SSRF)** (“ess-ess-are-eff”) occurs when a server fetches a caller-controlled URL. The caller's machine may be unable to reach an internal service, while the MCP server can. In the lab, a callback to a listener confirms that the server made an outbound request; requests to loopback ports then demonstrate how success versus connection-refused errors can reveal internal reachability. That response difference is an information leak even before any internal data is returned.
+
+Defenses include an allowlist of required destinations, strict scheme/host/port validation after URL normalization, blocking loopback/private/link-local and cloud-metadata ranges, rechecking DNS results and redirects, and outbound network controls. A hostname allowlist alone can be insufficient if DNS changes between validation and connection (DNS rebinding) or redirects lead elsewhere.
+
+### COAE scenario method
+
+When a question describes an MCP vulnerability, trace five things: **attacker-controlled input → MCP capability → downstream interpreter or service → missing control → impact**. For example, a `command` argument containing a shell separator → a command tool → the operating-system shell → no safe argument handling → arbitrary command execution (integrity and possibly confidentiality/availability impact).
+
+| Clue in the scenario | Likely weakness | First control to name |
+| --- | --- | --- |
+| Error response contains a key, header, path, or stack trace | Sensitive information disclosure | Generic client errors; protected, redacted logs; secret rotation if exposed |
+| Changing `doc_id` returns someone else's document | IDOR / broken object-level authorization | Check the caller's rights for that exact object on every operation |
+| Quote/comment/`UNION` changes a database result | SQL injection | Parameterized query; validate an allowed item identifier |
+| `;`, `|`, or `&&` adds a second OS command | Command injection | Avoid shell; use fixed executable plus argument list and allowlisted operations |
+| Server fetches a caller-selected URL or probes loopback | SSRF | Destination allowlist, normalized URL/IP checks, redirect/DNS checks, egress filtering |
+
+**Common exam trap:** “The LLM should refuse” is not a server-side control when the attacker can call the MCP endpoint directly. Apply validation, authorization, and least privilege at the server and downstream service boundaries. Also distinguish *validation* (is this input well-formed/allowed?) from *authorization* (may this caller access this particular object or perform this action?).
+
+**HTB's lesson:** enumerate capabilities, inspect error behavior, and use the provided lab to recognize sensitive disclosure, broken authorization, SQL injection, command injection, and SSRF.
+
+**Production perspective:** these are demonstrations against the spawned HTB lab only. Never test probes against unrelated systems. Treat any discovered credential as compromised; do not save it in notebook output, source control, or study notes. Production reviews should use test accounts and explicitly scoped destinations, and should avoid destructive tool calls.
+
+**Notebook decision:** Added `Module_315_Vulnerable_MCP_Servers_Study.ipynb` as a companion to the Section 10 practical notebook. It reuses MCP client vocabulary but keeps this section's network calls separate. The target is a placeholder, all lab requests are disabled by default, and the notebook explains the purpose and expected interpretation of each probe without storing responses or credentials.
