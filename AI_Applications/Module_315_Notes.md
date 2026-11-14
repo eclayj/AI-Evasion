@@ -567,3 +567,62 @@ The practical lesson is to preserve **server provenance** in the host's tool lis
 **Production perspective:** treat third-party MCP servers and their returned content as untrusted. Review tool code and descriptions, verify identity and integrity, detect capability changes, maintain server provenance, minimize host permissions, and require explicit authorization for sensitive actions. The malicious source examples in the lesson are for static analysis; they are not implemented as executable notebook code.
 
 **Notebook decision:** No new notebook is appropriate for this theory and threat-analysis section. Its sample implementations intentionally exfiltrate prompts or request private files and unauthorized plugin actions. The notes preserve the attack chains and exam cues without creating code that performs those actions; Section 11's opt-in lab notebook remains separate.
+
+## Section 13 — Mitigating MCP Security Issues
+
+### Protect the transport and follow its specification
+
+MCP is a protocol, not a complete security boundary. A protocol implementation should follow the specification and use a well-tested, trusted implementation where possible. HTB highlights the Streamable HTTP **Origin** header: a server should validate that header to help prevent **DNS rebinding** attacks against services intended to be local-only.
+
+In a DNS rebinding attack, an attacker-controlled hostname can resolve to a public attacker server first, then later resolve to a local address such as `127.0.0.1`. A victim's browser may therefore be tricked into sending a request to a localhost service that the attacker cannot reach directly. Origin validation helps the server reject requests from an untrusted website; binding the service only to the required network interface reduces reachability. These controls complement each other.
+
+MCP does not itself provide transport confidentiality or integrity. Use **TLS**, normally HTTPS, when messages cross a network. TLS helps prevent an on-path attacker from reading or modifying messages. It does not authenticate every user or decide who may call a particular tool; those checks must still be implemented separately.
+
+### Restrict reachability and enforce least privilege
+
+When possible, expose a server only locally. Otherwise bind it only to the network interface that needs to serve clients, add authentication where applicable, and enforce granular roles and permissions for resources and tools. A user allowed to read one object should not automatically gain permission to read all objects or call every tool.
+
+This connects directly to Sections 11 and 12. Server-side authorization limits what a direct MCP client can do; least privilege limits what a poisoned description can persuade the model to request. A refusal from the LLM is not an authorization check.
+
+### Validate inputs at the server and at the consuming boundary
+
+Every capability parameter is **untrusted input**, because a client can call the MCP endpoint manually and craft its own request. Validate it on the server, then use APIs that keep data separate from commands. Examples include parameterized SQL rather than building query strings, fixed OS operations rather than shell-command concatenation, and strict destination checks before fetching a URL.
+
+Keep three terms distinct:
+
+- **Validation:** check that a value has an allowed shape or value.
+- **Sanitization/encoding:** represent data safely for a particular output or interpreter context.
+- **Authorization:** check whether this caller may perform this action on this object.
+
+One does not replace the others. For example, an item name can be well-formed but still be unauthorized; URL-encoding spaces does not make SQL safe; and a user allowed to call a read tool may not be allowed to read every document.
+
+HTB mentions `mcp-scan` as a tool that can help identify potential implementation vulnerabilities. A scanner can find some issues, but a clean result is not proof that authorization, business logic, or malicious descriptions are safe.
+
+### Monitor and limit abuse
+
+Monitoring can highlight repeated invalid arguments, unusual call patterns, or unexpected tool use. Rate limits bound how quickly a client can make requests. These are **defense-in-depth**: they can help detect or reduce the impact of abuse, but they do not repair an injection flaw or replace permissions.
+
+### Review third-party MCP servers and minimize exposed data
+
+Before connecting a client to a third-party server, verify the server source and the target URL. Review the tool descriptions for suspicious instructions, while remembering the prior section's rug-pull risk: an approved description may later change. Keep track of tool provenance and changes where the host supports it.
+
+Also limit what information the model can pass into connected tools. If the model's context contains a password, API key, private document, or source code, a malicious tool may try to induce the model to send it. Do not place secrets in a workflow that does not need them. In a real deployment, secret values should be supplied only to the component that needs them, using protected configuration or a secret manager.
+
+### COAE scenario recall
+
+| Risk clue | Control at the relevant layer |
+| --- | --- |
+| A local server may receive requests from an untrusted website | Validate Origin, restrict binding/reachability, defend against DNS rebinding |
+| A network observer could read or alter MCP messages | HTTPS/TLS; separately authenticate users and authorize capabilities |
+| Crafted arguments reach a database, shell, or URL fetcher | Server-side validation and safe APIs at the consuming boundary |
+| A user can invoke every tool or access every record | Granular roles and object-level authorization |
+| Abuse can happen rapidly or go unnoticed | Monitoring and rate limiting as additional controls |
+| A third-party server could be malicious or misidentified | Verify source and URL, review descriptions, monitor changes, minimize shared context |
+
+**Common exam trap:** name a control that protects the layer in the scenario. TLS protects data in transit, not SQL construction. Validation checks input shape, not user permission. A scanner does not prove a tool is safe. A prompt refusal does not protect an exposed capability from a direct MCP client.
+
+**HTB's lesson:** follow the protocol specification, validate Origin, restrict server reachability, use TLS for external transport, validate untrusted arguments, enforce roles/permissions, monitor and rate-limit, and carefully review third-party servers and shared data.
+
+**Production perspective:** combine transport protection, network isolation, authentication, object-level authorization, safe input handling, least privilege, change review, and monitoring. Controls should remain effective even if the model follows malicious instructions.
+
+**Notebook decision:** No new notebook is needed. This section synthesizes implementation and integration controls rather than introducing runnable code. The Section 11 [vulnerability study notebook](Module_315_Vulnerable_MCP_Servers_Study.ipynb) already provides the finding-to-control mapping for the vulnerabilities discussed earlier.
