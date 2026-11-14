@@ -353,6 +353,14 @@ The transform is HTB's `Resize((75, 75)) → ToTensor() → Normalize(mean=[0.48
 
 For a human-readable plot, the notebook reverses normalization with **v = z×σ + μ**, said “v equals z times sigma plus mu.” That algebraically undoes only the channel scaling: multiply by standard deviation, then add the mean. It does **not** undo resizing or reconstruct the binary. HTB's direct `imshow` of normalized values can appear oddly colored/clipped because negative or greater-than-one values are not ordinary display intensities. The model still receives the normalized tensor; the inverse is used only for the side-by-side display. Section 21 ends at prepared loaders—**no CNN is trained yet**.
 
+### COAE quick recall
+
+- HTB uses a per-family **80/20 train/test** split: 7,459 training images and 1,880 test images; its validation folder is intentionally empty. Do not repeatedly tune against the test set.
+- Read **z = (v − μ) / σ** as “z equals pixel value v minus mean mu, divided by standard deviation sigma.” It shifts and rescales each RGB channel; it is not a malware-specific statistic and does not recover information lost by resizing.
+- `ToTensor()` scales byte pixels from 0–255 to 0–1 and produces `C×H×W` (channels, height, width). A batch is `B×C×H×W`; here one safe batch is `(64, 3, 75, 75)`.
+- `DataLoader` batches samples; shuffle training data, keep test ordering stable, and limit workers/batch size when memory is constrained. In this notebook, 64 samples and zero workers avoid the course example's 1,024-sample batches and two worker processes on Windows.
+- Resizing to 75×75 discards fine detail. Prepared loaders are the end of this section; no model is trained yet.
+
 ## Section 22 of 25 — The Model
 
 HTB chooses **ResNet50**, a deep convolutional neural network (CNN), as a pretrained feature extractor. A **convolution** applies small shared filters across an image to recognize local patterns; deeper layers combine these into broader features. A **residual/skip connection** lets a block add a learned change to its incoming signal: **h₍next₎ = F(h) + h**. Say “h next equals F of h plus h.” `h` is the current feature representation, `F(h)` the block's learned adjustment, and the sum is the next representation. If `h=2` and `F(h)=0.3` in one tiny component, the output is `2.3`: the block can retain what it already knew and add a correction. Real tensors contain many components and nonlinear operations; this scalar example only conveys the connection's idea.
