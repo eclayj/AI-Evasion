@@ -961,3 +961,36 @@ The notebook sets `RUN_TRAINING = False` by default. This is a practical safety 
 - Training is an opt-in in this notebook; `RUN_TRAINING` defaults to `False`.
 
 **Exam check:** For 45 target predictions among 50 eligible triggered source images, source-only ASR is `90%`. Explain why clean accuracy cannot replace ASR, and describe how invalid `-1` rows affect the metric.
+
+## Section 19 — Evaluating the Trojan Attack
+
+This section compares a clean baseline model and the Trojan-training model under clean and triggered inputs. Clean accuracy measures whether the Trojan-training process harmed ordinary classification. Source-only ASR measures whether a trigger redirects original source-class examples to the selected target class. These metrics must be read together: high ASR alone could come from a model that predicts the target for everything.
+
+### Formula pronunciation and meaning
+
+**Clean accuracy:** `100 × correct clean predictions / valid clean examples`. Read aloud: “one hundred times the number of clean examples classified correctly, divided by the number of valid clean examples.” For 12,367 correct out of 12,630, the result is approximately `97.92%`.
+
+**Source-only ASR:** `100 × triggered source images predicted as target / valid triggered source images`. Read aloud: “one hundred times the number of triggered source images predicted as the target, divided by the number of valid triggered source images.” For 270 successful target predictions among 270 eligible triggered Stop signs, ASR is `100%`.
+
+The denominator is specific to the course protocol: only triggered test images whose original label is `SOURCE_CLASS` count. The trigger changes the pixels but the original labels remain available to identify eligible source examples. Do not silently replace this denominator with all triggered images.
+
+### HTB example results
+
+| Model | Clean accuracy | Source-only ASR | Interpretation |
+| --- | ---: | ---: | --- |
+| Clean baseline | 97.92% (12,367 / 12,630) | 0% (0 / 270) | Performs well on normal images; no observed trigger-to-target behavior. |
+| Trojaned model | 97.55% (12,320 / 12,630) | 100% (270 / 270) | Clean accuracy remains close to baseline while the trigger redirects every tested source image. |
+
+These are the sample results displayed in HTB's lesson, not a fresh notebook execution. The notebook reuses Section 18's `evaluate_model` and `calculate_asr_gtsrb` functions. It checks for models in memory or saved checkpoints, evaluates one model at a time, then returns it to CPU to limit accelerator memory use. `RUN_EVALUATION` defaults to `False`; enabling it requires clean and triggered test loaders and trained models or saved checkpoints. HTB shows direct evaluation calls; the opt-in gate and sequential model handling are notebook safety choices.
+
+### COAE quick recall
+
+- Accuracy = correct clean predictions / valid clean examples × 100%.
+- This section's ASR = triggered source examples predicted as target / triggered source examples × 100%.
+- The clean baseline provides a reference for normal performance and trigger behavior.
+- High Trojaned clean accuracy suggests the backdoor did not obviously damage the main task; high Trojaned ASR indicates trigger effectiveness on the tested source class.
+- `model.eval()` switches layers to prediction behavior; `torch.no_grad()` skips gradient storage during evaluation.
+- If there are no eligible source examples, ASR is undefined, not evidence of a 0% attack rate.
+- Notebook evaluation remains off by default to avoid unexpectedly processing both full test sets.
+
+**Exam check:** Why can clean accuracy look normal while a backdoor is present? If 270 of 270 eligible triggered source images become the target class, what is the source-only ASR?
