@@ -164,3 +164,53 @@ For defense, do not place secrets in prompts if the model does not need them; se
 HTB provides a hands-on web lab rather than Python code or a dataset. I added an annotated notebook as a **manual experiment worksheet**: it explains the SSH tunnel, organizes the lesson's prompt families, and records repeated observations and defensive checks. It does not make HTTP/SMTP requests or submit prompts automatically, so it has no hidden network behavior and does not depend on a fragile target response schema.
 
 Notebook file: [Module_297_Direct_Prompt_Injection_Lab.ipynb](Direct_Prompt_Injection/Module_297_Direct_Prompt_Injection_Lab.ipynb). Replace the SSH placeholders only with the values shown for your active HTB lab. Use the worksheet only within that lab and its stated rules.
+
+## Section 5 of 12 — Indirect Prompt Injection
+
+### The attacker controls content that the application later supplies
+
+In **direct prompt injection** (Section 4), the attacker types the prompt that reaches the model. In **indirect prompt injection**, the attacker places instructions in content that an application later retrieves, imports, or summarizes. The person who owns the LLM application may have written a task such as “summarize this email,” while an attacker controls part of the email being summarized.
+
+The data flow is:
+
+```text
+attacker-controlled content -> application imports or retrieves it -> model receives it with its task -> output may influence an application decision
+```
+
+Read each `->` as **“flows to.”** The full diagram says that attacker-written content passes through an application data source into the model's input, and the model's response can then influence what the application does. This is a conceptual flow, not a mathematical formula. Unlike direct injection, the attacker usually controls only one piece of a larger structured input.
+
+### Scenario 1: a Discord export in CSV form
+
+The bot owner asks an LLM to identify Discord users who posted about pets, a violation of the server's stated rule. The application exports messages as CSV and asks the model to list offenders. An attacker can write a comment that tells the model to accuse the owner, even when the surrounding dataset is ordinary conversation. The model may then include the wrong username in its answer.
+
+This illustrates a **data integrity** risk: untrusted records can influence a moderation result. CSV formatting and code tags help humans understand which text is data, but they do not guarantee the model will treat text inside a record as inert data. A trustworthy moderation workflow should retain source evidence, apply the actual rule to the actual post, and require a reliable review or authorization step before banning someone.
+
+### Scenario 2: a URL fetcher and HTML comments
+
+The URL lab asks an LLM to summarize a page. The page owner or attacker can place instruction-like text in the HTML. The lesson demonstrates both a payload after ordinary HTML content and one inside an HTML comment.
+
+`<!-- ... -->` is read **“HTML comment.”** A browser normally does not display comment text on the rendered page. The underlying HTML still contains it, and an application that fetches and passes raw or partially processed HTML to a model may include it in the model's context. Hidden from the visual page is not the same as hidden from the fetcher. This is why the exact preprocessing path—HTML parsing, comment removal, text extraction, and retrieval—matters.
+
+The page's lab asks us to host content on the learner's computer at port 8000. The reverse SSH forward from Section 4 lets the lab reach that local web server. Python's `http.server` is used as a simple static server in the course; it serves files, not arbitrary application logic. The page's HTML comment example tests how the lab processes fetched source.
+
+### Scenario 3: an email summary or application decision
+
+HTB uses `swaks` to send a message to the lab's local SMTP forward. A plain email can be tested first; the lesson then shows an HTML email using the `Content-Type: text/html` header and an HTML comment in the body. The model processes the email even though a mail reader would normally hide the comment in its rendered view.
+
+In the first mail example, a dashboard displays an LLM-generated summary. The lesson points out that a real attacker may not be able to read that summary, so this particular feedback loop is intentionally unrealistic. A second lab scenario is more consequential: the model recommends accepting or rejecting an application based on the email. In that design, malicious content can influence a decision even if the attacker never sees the exact model output.
+
+### Why the instruction/data boundary is difficult
+
+The application may wrap retrieved content in tags or add a blank line before it, but those are formatting cues, not an unbreakable boundary. The model receives both the developer's task and the supplied content as input and must interpret which text is instruction versus data. The risk increases when the application uses the response to take action without independently verifying the evidence.
+
+This extends the combined-context idea from Section 2. With indirect injection, the user message may be benign; the hostile instruction arrives through a data source such as a comment, URL, or email. The Section 3 reconnaissance questions about retrieval and external tools now become especially important: every source that can enter the model's context is part of the attack surface.
+
+### Defensive design
+
+Treat fetched pages, comments, documents, and emails as untrusted even when they are formatted as HTML, CSV, or quoted text. Remove or normalize unnecessary markup before model use, track where records came from, and keep model analysis separate from trusted policy enforcement. For decisions such as banning a user or accepting an application, verify the underlying evidence and enforce authorization in application code. A model may help summarize or flag cases, but its answer should not alone trigger a consequential action.
+
+### Notebook decision
+
+This section provides hands-on web, HTML, and SMTP labs rather than a Python model implementation. I added a lightweight standard-library notebook to demonstrate locally that HTML comment text exists in the source even though it is not ordinary page text, and to organize redacted observations by injection location and downstream effect. It does not fetch URLs, start a web server, send email, or connect to the target.
+
+Notebook file: [Module_297_Indirect_Prompt_Injection_Lab.ipynb](Indirect_Prompt_Injection/Module_297_Indirect_Prompt_Injection_Lab.ipynb). The network actions remain manual through the authorized HTB lab and its documented SSH tunnel.
