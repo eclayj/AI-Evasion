@@ -254,3 +254,25 @@ These are use-and-impact risks, not a specific code vulnerability. They are ampl
 ### COAE exam cue and notebook decision
 
 Recognize the difference between **unreliable output** (hallucination) and **deliberate harmful use** (abuse), while noting that a single incident may involve both. When describing the risk, name the harm and the scaling factors—persuasiveness, personalization, and automation. This is an overview section without new code or a practical implementation, so the study-guide notes are sufficient; no notebook is needed.
+
+## Section 10 of 14 — LLM Abuse Attacks
+
+### Misuse and detector evasion
+
+The previous section surveyed harmful uses; this lesson looks at misinformation generation and attempts to evade hate-speech detectors. HTB explicitly avoids providing technical instructions for running abuse campaigns. Its misinformation example illustrates a general weakness: a model may resist a direct request about a sensitive real-world topic but produce a fictional version around a harmless placeholder that can later be repurposed. A refusal to one prompt therefore does not prove that generated content cannot be adapted or misused downstream.
+
+### How a toxicity threshold works
+
+A text classifier may assign a **toxicity score** and compare it with a policy cutoff. Write `flag if s ≥ τ` and say it aloud as “flag it if score s is greater than or equal to tau.” Here, `s` is the detector's score and `τ` (Greek letter tau, pronounced “tow”) is the chosen threshold. For example, if a detector scores a message at `0.82` and the cutoff is `0.70`, then `0.82 ≥ 0.70`, so the system flags it. A lower threshold tends to catch more cases but can also flag more benign content; a higher threshold may reduce false alarms but allow more harmful content through. The score reflects the classifier and its definition, not an objective measurement of harm.
+
+Detectors can disagree because they use different definitions, training data, languages, and thresholds. The lesson's attack families change the surface form to challenge that classifier boundary:
+
+- **Character-level changes:** swap, substitute, insert, or delete characters. The lesson uses benign misspellings to show the form of the transformation.
+- **Word-level changes:** substitute a synonym, which may preserve a broad idea but can also change nuance.
+- **Sentence-level changes:** paraphrase the text while attempting to retain its meaning.
+
+The general red-team question is whether content with the same harmful intent can receive a lower detector score after its form changes. This can also affect detectors for other policy categories. Detection should be evaluated on diverse variations and with human review where decisions have significant consequences.
+
+### COAE exam cue and notebook decision
+
+Distinguish **harmful content generation** from **evasion of a harmful-content detector**. For a threshold question, identify the score, the cutoff, and which side triggers the flag; remember that the threshold trades off false positives and false negatives. The evasion goal is to retain meaning while changing form enough to cross the classifier's decision boundary. This section is conceptual and intentionally does not need a notebook containing harmful content or evasion payloads.
