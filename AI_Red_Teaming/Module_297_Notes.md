@@ -379,3 +379,42 @@ The section includes an optional **Prompt Leak 4** exercise asking for the flag 
 This section introduces mitigation concepts rather than new Python code. I added a small worksheet to map each control to what it can reduce and what it cannot guarantee. It has no target calls and no operational payloads.
 
 Notebook file: [Module_297_Mitigation_Review_Worksheet.ipynb](Mitigations/Module_297_Mitigation_Review_Worksheet.ipynb).
+
+## Section 11 of 12 — LLM-based Prompt Injection Mitigations
+
+### Fine-tuning for a narrower task
+
+**Fine-tuning** starts with a pretrained model and trains it further on examples for a specific use case, such as tech support. HTB describes two potential benefits: responses may fit the task better, and the narrower role may reduce opportunities for some off-task behavior. Fine-tuning does not eliminate prompt-injection risk. It changes the model's learned response tendencies; it does not create an independent authorization boundary. Evaluate for both security improvements and regressions in normal task quality.
+
+### Adversarial prompt training
+
+In **adversarial prompt training**, training examples include prompt-injection and jailbreak attempts, with the goal of teaching the model to recognize and resist them. This is like exposing the model to examples of attacks before deployment so common patterns are less surprising.
+
+The benefit is resilience against the kinds of examples represented in training. Novel wording, different data sources, and new combinations can still behave differently. This is a training-time mitigation, distinct from a guardrail model that inspects a request during use.
+
+### Guardrail LLMs
+
+A **guardrail LLM** is a separate model used to review another model's input or output. HTB divides them into two types:
+
+- An **input guard** examines content before the primary model receives it. It can block or flag a suspicious request. To cover indirect injection, the application needs to consider the assembled context and retrieved content too, not only the user's typed message.
+- An **output guard** examines the primary model's response before returning it or allowing a later action. It can look for sensitive data, harmful content, misinformation, or indications that an injection changed the answer.
+
+The flow is:
+
+```text
+input -> input guard -> primary LLM -> output guard -> response or approved action
+```
+
+Read each arrow as **“flows to.”** The input guard checks before generation; the output guard checks after generation. If an output could trigger an action, the output guard and trusted authorization checks must happen before the action—not afterward.
+
+### Tradeoffs and failure cases
+
+Guardrails add extra model calls, which increase response time, compute, and operating cost. Smaller guard models can reduce that overhead, but still need evaluation for the task and language they will inspect. Like other classifiers, a guard can create a **false positive** by blocking harmless content or a **false negative** by missing an attack. A guard is another layer, not a proof that an interaction is safe.
+
+### How these mitigations fit together
+
+Fine-tuning and adversarial training try to change the primary model's behavior. Input and output guards review the interaction around that model. Least privilege and server-side authorization limit the consequences if both model layers make a mistake. A defense plan should match controls to the data and actions the application exposes, then test the full pipeline—including retrieved content and downstream tools.
+
+### Notebook decision
+
+HTB presents training approaches and a guardrail architecture diagram, but no code or data to implement. The existing Section 10 worksheet already compares mitigations and limitations; I updated these notes without creating a duplicate notebook.
