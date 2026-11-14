@@ -271,3 +271,37 @@ For a defender, the corresponding review areas include protecting model artifact
 ### Math, code, and notebook decision
 
 This lesson adds no equation or implementation code. Its contribution is a threat model for the **Model** component and a comparison of attacks that modify a trained model, evade it through inputs, or reproduce its behavior. A notebook is not needed for this conceptual section.
+
+## Section 8 of 11 — Attacking Data Components
+
+This section focuses on both **training data**—examples the model learns from—and **inference data**—inputs or context supplied when the deployed model answers. Data influences model quality and usability. Even if the model code and parameters are unchanged, biased, false, or unrepresentative data can cause low-quality, discriminatory, or harmful behavior. **Unrepresentative** means the training examples do not resemble the kinds of inputs the deployed model will receive.
+
+### Data poisoning and backdoors
+
+**Data poisoning** manipulates examples during training rather than editing model parameters directly. The resulting behavior can include misleading, biased, or harmful outputs. A **backdoor attack** is a targeted form in which a trigger in the input causes an erroneous or adversarial response. The trigger may be rare or inconspicuous, so ordinary average-case evaluation may fail to reveal the behavior.
+
+This builds directly on Section 3's spam-classifier experiment: changing labeled examples changed the learned association for a selected message. The current section extends the idea to generative models that require large amounts of training data. A real-world constraint is gaining influence over the data source or training process. Depending on collection, validation, and sanitization, an attacker may have no practical way to insert data—or the pipeline may expose an opportunity.
+
+In **federated learning**, multiple parties train collaboratively without necessarily centralizing all raw data. Participants can train locally and send model updates that are combined into a shared model. Keeping raw records local can help privacy, but it does not automatically make training trustworthy: a participant may send a poisoned update, so contributions and the aggregation process also need safeguards.
+
+### Data exposure and theft
+
+Training and inference datasets may contain personal information, business-critical content, or curated data that is costly to assemble. Unauthorized access can cause privacy, legal, financial, or reputational harm, and stolen data may help an attacker analyze or target the original model. Protecting data is therefore as important as protecting the model artifact.
+
+HTB lists several access paths to examine:
+
+- cloud storage configured too broadly or left exposed;
+- insufficient encryption for stored data or data in transit;
+- insecure data pipelines or vulnerable APIs;
+- weaknesses in third-party data providers and other supply-chain partners; and
+- misuse of legitimate employee or contractor access, including stolen credentials or intentional insider theft.
+
+These examples emphasize that data attacks often use familiar security weaknesses around the ML pipeline. Because insiders may already have valid access, monitoring and clear data-access policy matter alongside perimeter defenses.
+
+### TTPs and context
+
+Manipulating training data may have ethical, legal, and safety consequences beyond model accuracy, especially in content creation, legal-document generation, or healthcare advice. Obtaining the right data and access is often the difficult step. A red-team assessment should identify what data sources and pipelines are in scope, how records are validated, who can alter them, and what evidence would show an unauthorized change or disclosure.
+
+### Math, code, and notebook decision
+
+This lesson has no new equation or code exercise, so no notebook is needed. The Section 3 notebook remains the concrete local example of how a few changed training rows can influence a model. The current lesson broadens the data threat model to data quality, backdoors, federated updates, privacy, providers, storage, and insider access. Defensive measures such as provenance records, access controls, validation, encryption, and monitoring are production safeguards, not separate attack steps taught by this section.
