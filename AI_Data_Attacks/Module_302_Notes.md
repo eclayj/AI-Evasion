@@ -1181,3 +1181,58 @@ HTB's live example is an authorized lab demonstration of the complete attack, in
 - Defenses include restricted loading, trusted/provenance-checked artifacts, tensor-only formats, and isolation of legacy deserialization.
 
 **Exam check:** Which step crosses the code-execution boundary? Why can an upload return HTTP 200 while the listener receives no connection? Which system must be able to reach the listener address?
+
+
+## Section 25 — Skills Assessment: label flipping against one-vs-rest logistic regression
+
+### Task and constraints
+
+The assessment supplies a two-feature, four-class dataset and a student notebook. It asks for **label-flipping poisoning only**: leave every feature vector unchanged, but selectively change some training labels so genuine Class 1 test points are often predicted as Class 0 or Class 2. Preserve the provided test labels and the fixed estimator settings. The template trains a clean baseline, trains again on the poisoned labels, checks class-specific results, saves model parameters in a required `.npz` structure, and submits them to the evaluator API. The Academy page currently marks this question complete; this notebook is retained as a study/replay reference, and the accepted answer is not copied into the repository.
+
+The dataset contains `X_train` with shape `(1500, 2)`, `y_train` with shape `(1500,)`, `X_test` with shape `(500, 2)`, and `y_test` with shape `(500,)`. Read `(1500, 2)` as **1,500 rows, each containing two measured features**. The provided labels are balanced: 375 training and 125 test examples per class. `X` means feature data; `y` means class labels.
+
+### One-vs-rest logistic regression
+
+For each class `k`, one-versus-rest (OvR) trains a separate binary classifier: “class `k`” versus “all other classes.” With four classes, that is four classifiers. Each classifier computes a score from the feature vector:
+
+`z_k(x) = w_k^T x + b_k`
+
+Read this as **“z sub k of x equals w sub k transpose times x plus b sub k.”** `x` is the two-feature row; `w_k` is the pair of weights for classifier `k`; the superscript `T` means transpose, so `w_k^T x` is a dot product; `b_k` is that classifier's bias. For example, if `w_k = [2, -1]`, `x = [3, 4]`, and `b_k = 0.5`, then `z_k(x) = 2×3 + (-1)×4 + 0.5 = 2.5`.
+
+The logistic transform is `p_k(x) = 1 / (1 + e^(-z_k(x)))`, read **“p sub k of x equals one divided by one plus e to the negative z sub k of x.”** It maps a score to a value between zero and one. A positive score gives a value above 0.5; a negative score gives one below 0.5. In multiclass OvR prediction, the class with the strongest class score wins. `argmax_k s_k(x)` is read **“arg max over k of s sub k of x”** and means “the class index whose score is largest.”
+
+The HTB template fixes `random_state=1337`, `solver="liblinear"`, `C=1.0`, and `max_iter=200` inside `LogisticRegression`. Keep those values unchanged because the evaluator expects the same model configuration and parameter shapes. The outer `OneVsRestClassifier` supplies the four class-versus-rest models.
+
+### A margin-guided, label-only poisoning strategy
+
+For each genuine Class 1 **training** row `x_i`, obtain its baseline scores `s_0(x_i)`, `s_1(x_i)`, `s_2(x_i)`, and `s_3(x_i)`. Compare Class 1 only with the requested rivals, Classes 0 and 2:
+
+`m_i = s_1(x_i) - max(s_0(x_i), s_2(x_i))`
+
+Read aloud: **“m sub i equals score one at x sub i minus the maximum of score zero and score two at x sub i.”** The `max` picks the stronger of the two relevant rivals. If the scores are `s_1=1.2`, `s_0=1.0`, and `s_2=-0.4`, then `m_i = 1.2 - max(1.0, -0.4) = 0.2`: Class 1 wins by only 0.2 score units, so this is a vulnerable boundary example. If `s_1=2.0`, `s_0=0.2`, and `s_2=0.1`, the margin is 1.8, so the clean model supports Class 1 much more strongly.
+
+The notebook sorts Class 1 training rows by this margin and flips a configurable fraction of the lowest-margin labels to whichever of Class 0 or Class 2 scored higher for that row. The implementation is a **label-only** change: `X_train` stays the same; labels outside selected Class 1 rows stay the same; selected labels become 0 or 2. The value `POISON_RATE` is a starting experiment setting, not a universal best value. A stronger rate can further suppress Class 1 but may damage other class behavior or stop the desired Class 1 distinctions from being useful. Inspect the local metrics and follow the assessment's evaluator criteria.
+
+The label rule can be written:
+
+`y_i' = rival_i` for a selected Class 1 training row; otherwise `y_i' = y_i`.
+
+Read `y_i'` as **“y sub i prime,”** the new label for row `i`; `rival_i` is 0 or 2, chosen from the larger baseline rival score. In ordinary English: **keep each feature row, and for only the selected Class 1 examples replace its training answer with the stronger requested rival.**
+
+### Evaluation and submission
+
+Overall accuracy alone can hide the required behavior. For true Class 1 test rows, count predictions as 0, 1, 2, or 3 separately. The task specifically wants frequent errors into 0 and 2, so report both counts or proportions as well as correct Class 1 predictions and errors into Class 3. Leave `X_test` and `y_test` unchanged; do not use this held-out set to choose training labels or poison rate. The remote evaluator is the final authority for its hidden criteria.
+
+The parameter file must contain `coef_estimator_0` through `coef_estimator_3`, `intercept_estimator_0` through `intercept_estimator_3`, and `classes_`, saved with `np.savez_compressed`. The evaluator receives it as multipart field `model_params` at `/evaluate_model`. Keep the API URL configurable and submission disabled by default; only enable it when a live, authorized assessment instance is available.
+
+### COAE quick recall
+
+- OvR trains `K` binary classifiers for `K` classes; each asks one class versus the rest.
+- `z_k(x) = w_k^T x + b_k`: weighted feature sum plus bias. The logistic transform maps the score into a 0–1 value.
+- `argmax` means select the index of the largest class score.
+- Label flipping changes `y_i`, not `x_i`; preserve clean test labels.
+- Class 1 error distribution matters: inspect confusion specifically into Classes 0 and 2, not only total accuracy.
+- Respect fixed estimator settings and exact API parameter names/shapes.
+- The challenge notebook uses deterministic score-guided selection, stores no answer token, and keeps API submission off by default.
+
+**Exam check:** In one sentence, explain OvR. Given Class 1/0/2 scores `1.2`, `1.0`, and `−0.4`, calculate the requested-rival margin. What must remain unchanged in a label-flipping-only attack, and why is overall accuracy alone insufficient here?
