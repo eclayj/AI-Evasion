@@ -412,6 +412,13 @@ The [malware-image notebook](Malware_Image_Dataset_Study.ipynb) now has an opt-i
 
 The endpoint may take up to two minutes to evaluate. An HTTP 200 response says only that the web request succeeded; the JSON body determines whether the model met the score requirement and whether a flag was returned. The notebook uses a connection timeout and a longer response timeout, checks HTTP failures, and prints the JSON without storing flags in the repository. Upload is disabled by default, and the target IP is blank so `Run All` cannot silently send the roughly 103 MB model somewhere. HTB already shows this account's Section 24 question as completed; we did not spawn another VM or claim a new hidden-evaluator result in this pass. This is distinct from our local **96.33%** test score on a known seeded split.
 
+### COAE quick recall
+
+- **Model upload:** send the saved TorchScript artifact as a multipart HTTP `POST` to the Playground evaluator on port `8002`; the form field name must be exactly `model`.
+- **Address depends on where code runs:** `localhost` refers to the same machine running the request. Use it inside the Playground VM; from a VPN-connected laptop, use the spawned VM's IP.
+- **Read the response body:** HTTP `200` means the request succeeded at the web layer. The JSON response tells whether the hidden-image evaluation passed and may contain a flag.
+- **Keep the action explicit:** the notebook's upload switch is off and the target address blank by default. Confirm the intended HTB VM before enabling it. This step evaluates a saved model; it does not train one or compute a new local test accuracy.
+
 ## Section 25 of 25 — Skills Assessment (IMDB Sentiment)
 
 HTB now changes modality from network rows and malware images to **natural-language text**. The supplied ZIP contains exactly `train.json` and `test.json`, each with **25,000** reviews and a `text` string plus binary `label`: `0` negative, `1` positive. Each half is balanced at 12,500 of each class. The task is to train a model from the supplied training reviews, save it as `skills_assessment.joblib`, and upload it to the Playground evaluator on **port 5000** under multipart field `model`. This account's question is already marked complete; we do not invent a new hidden-evaluator score or flag in these notes.
