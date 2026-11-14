@@ -291,3 +291,60 @@ The notebook plots two related views: accuracy on the fixed clean test set versu
 **Exam check:** if model accuracy is unchanged after poisoning but the boundary plot shifts, explain that the model changed while no held-out point crossed into a different predicted class. If asked how to measure training-time poisoning, describe training on corrupted training labels and evaluating on the same clean, held-out examples used for the baseline.
 
 Notebook: [Module_302_Label_Flipping_Study.ipynb](Module_302_Label_Flipping_Study.ipynb), now extended through Section 6 with a poisoning-rate sweep, clean-test accuracy comparison, and boundary overlay. It keeps test labels clean and uses small synthetic data for an interpretable CPU exercise.
+
+
+## Section 7 of 25 — Targeted Label Attacks
+
+### From broad corruption to a chosen behavior
+
+The general label-flipping attack randomly changes a portion of all training labels and aims for broad performance degradation. A **targeted label attack** chooses rows from a particular class and relabels some of them as another class. HTB's sentiment example targets positive reviews (Class 1) and changes selected labels to negative (Class 0). The features stay where they are; the training answers change.
+
+The distinction is the attack's objective and selection rule. Random flipping does not focus on one class; targeted flipping focuses the model's training signal on one chosen class region. It aims to make a particular kind of input behave incorrectly in a chosen direction. This is still data poisoning because the attacker manipulates training data, specifically labels. The attack is not necessarily trying to lower overall accuracy: it may seek a particular misclassification while many other examples remain correct.
+
+### Read the loss change aloud
+
+For a training example `j`:
+
+- `x_j` — **“ex sub j”**: its feature vector.
+- `y_j` — **“why sub j”**: its original label.
+- `y_j′` — **“why sub j prime”**: its altered label; prime means changed version.
+- `p_j` — **“pee sub j”**: model probability that it belongs to Class 1.
+- `−log(p_j)` — **“negative log of pee sub j”**: per-example loss when the supplied label is 1.
+- `−log(1−p_j)` — **“negative log of one minus pee sub j”**: per-example loss when the supplied label is 0.
+
+The binary cross-entropy loss for one example is
+
+`−[y_j log(p_j) + (1−y_j) log(1−p_j)]`.
+
+Read it: **“negative, open bracket, y sub j times log of p sub j, plus one minus y sub j times log of one minus p sub j, close bracket.”** When the original positive label is `y_j=1`, the loss is `−log(p_j)`. If the model assigns `p_j=0.9`, this is `−log(0.9)≈0.105`, a small penalty. After the attacker changes the label to `y_j′=0`, the loss becomes `−log(1−0.9)=−log(0.1)≈2.303`, a large penalty.
+
+The target's features still strongly resemble Class 1, but the training label tells the optimizer to treat them as Class 0. To reduce the large loss, the model adjusts its weights and bias. Since the logistic decision boundary is `w^T x + b = 0` (say **“w transpose times x plus b equals zero”**), changing those parameters moves the boundary. If enough target-class points are poisoned, the class-1 feature region may be pushed toward the class-0 side. This explains the direction of the intended bias; it does not guarantee every selected or similar input will be misclassified.
+
+### Why the percentage denominator matters
+
+The targeted function first finds the indices where `y == target_class`. Call their count `n_target_samples`. It then calculates
+
+`n_to_flip = int(n_target_samples × poison_percentage)`.
+
+Read this aloud: **“n to flip equals the integer part of n target samples times poison percentage.”** Here the fraction is applied to the target-class subset, not to every training row. With 353 Class 1 training examples and a 40% targeted rate:
+
+`int(353 × 0.40) = int(141.2) = 141` labels.
+
+There are 700 training examples overall, so 141 changed labels are about `141/700 ≈ 20.1%` of the full training split. Thus “40% targeted poisoning” means 40% of Class 1, not 40% of all training data. This contrasts with Section 6's general poisoning sweep, where the percentage is applied to all training labels.
+
+The code maps indices carefully: `np.where(y == target_class)[0]` returns positions in the full label array. The random generator chooses positions *within* that target-index list; indexing the list with those choices gives the original-array indices to change. `replace=False` prevents selecting the same target row more than once. The function copies `y` before assignment and returns both the poisoned copy and the original row indices.
+
+HTB validates that the percentage is between zero and one, that `target_class` and `new_class` differ, and that both classes exist. The study notebook preserves those checks, makes the random seed explicit, and labels the plot with the source class. It then fits a new logistic regression model using `X_train` paired with the targeted poisoned labels. It does not measure targeted impact in this subsection; that comes later.
+
+### COAE quick recall
+
+- **Attack family:** training-data poisoning; the modified field is the label.
+- **Targeting:** choose a source class and replacement class; sample only from source-class rows.
+- **Rate denominator:** the target-class count, not the total training-set count.
+- **Intent:** make a chosen class region or input type more likely to receive a chosen wrong label; general accuracy loss is not the only objective.
+- **Loss mechanism:** features suggest one class while the supplied poisoned label requests another, producing a large cross-entropy error that shifts learned parameters and the decision boundary.
+- **Evaluation:** preserve the clean baseline and correctly labeled test set; measure whether the intended targeted behavior actually occurred rather than assuming success from the poison rate.
+
+**Exam check:** if a question says “flip 40% of class 1 to class 0,” first count only the class-1 training examples, multiply that count by 0.40, and convert to a whole number. Do not multiply the rate by the entire dataset unless the question explicitly defines it that way. If it asks how the attack differs from random label flipping, emphasize its class-specific selection and chosen misclassification objective.
+
+Notebook: [Module_302_Label_Flipping_Study.ipynb](Module_302_Label_Flipping_Study.ipynb), extended through Section 7 with a targeted label-flipping function, traceable selected indices, class-aware visualization, and model fit. Targeted impact evaluation is left for the later course section that introduces it.
