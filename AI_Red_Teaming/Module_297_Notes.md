@@ -347,3 +347,35 @@ The earlier sections introduced prompt-injection and jailbreak families manually
 HTB shows command-line usage and sample detector counts, while explicitly making the external API exercise optional and out of scope. I added a standard-library report-reading notebook that reproduces the sample failure-rate calculations and states what they do and do not mean. It does not install garak, use credentials, or contact any hosted model.
 
 Notebook file: [Module_297_Garak_Report_Reader.ipynb](Tools_of_the_Trade/Module_297_Garak_Report_Reader.ipynb).
+
+## Section 10 of 12 — Traditional Prompt Injection Mitigations
+
+### Prompt engineering can guide, but it cannot enforce security
+
+HTB's simplest mitigation adds a system instruction to keep a secret private, with blank lines separating it from the user prompt. That works for the first basic lab example. The lesson then demonstrates why the same wording is not enough against other prompt-injection approaches. System prompts and separators can guide the model's behavior, but they are not access-control boundaries.
+
+HTB says avoiding LLMs is the only way to guarantee prompt injection itself cannot occur. Read this as a claim about guaranteeing that the model will never follow malicious instructions. A system can still prevent the resulting **impact** by keeping secrets and powerful actions outside the model's reach. For example, if the model never receives a secret, an injection cannot make it repeat that secret from its context; if it cannot ban a user or approve an application, a manipulated response cannot perform that action alone.
+
+### Whitelists and blacklists
+
+A **whitelist** permits only pre-approved inputs. For a general assistant, a short fixed list can make the model's flexible interface pointless. A **blacklist** blocks known words, phrases, prompt lengths, or similarities to known attack strings. These checks are easy to add and may stop basic cases, but synonyms, split or encoded text, and new phrasing can get around fixed patterns. Length limits help manage resource use, but a short prompt can still be malicious.
+
+Filters can contribute as one layer, but the section cautions against relying on them alone. A filter's result should not be mistaken for proof that the content is safe or the model cannot be manipulated.
+
+### Least privilege and human review
+
+The **principle of least privilege** means giving a component only the information and permissions it needs. Do not send secrets into the model context if the task can be completed without them. If tools are needed, constrain each tool's permissions and have trusted application code check authorization for every action.
+
+HTB also recommends close human supervision when model output could affect important decisions. Human review is especially relevant to the earlier job-application scenario. In practice, a review step should be supported by clear evidence, restricted actions, and an explicit approval gate; asking a person to watch every low-risk output is not a substitute for secure design.
+
+### Put the controls around the model
+
+Section 4's drink-order case showed why the application should calculate trusted prices and verify discounts itself. Section 5's indirect-injection labs showed why retrieved comments, pages, and emails should be treated as untrusted. This section's durable defensive lesson is to reduce what the model can access, validate what it returns, and enforce consequential decisions outside the model. Prompt wording and filters can supplement those controls.
+
+The section includes an optional **Prompt Leak 4** exercise asking for the flag from the system prompt. The current lab target is running, but this workspace cannot reach its SSH port through the VPN path, so I have not run that exercise here.
+
+### Notebook decision
+
+This section introduces mitigation concepts rather than new Python code. I added a small worksheet to map each control to what it can reduce and what it cannot guarantee. It has no target calls and no operational payloads.
+
+Notebook file: [Module_297_Mitigation_Review_Worksheet.ipynb](Mitigations/Module_297_Mitigation_Review_Worksheet.ipynb).
