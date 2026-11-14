@@ -896,3 +896,68 @@ The section's course code uses a trigger function, a dataset wrapper that modifi
 - This subsection defines attack data paths; training and evaluation are later steps.
 
 **Exam check:** With 53 source samples and rate 0.10, `int(53 × 0.10) = 5`. Which fields change for those five training samples? Which field is retained in a triggered test sample, and why?
+
+
+## Section 18 of 25 — Training the Models
+
+HTB now defines a training loop and evaluation routines, then trains two fresh CNNs for comparison. The **clean baseline** trains on clean images with their correct labels. The **Trojan-training model** uses the poisoned loader: selected Stop signs (class 14) have a trigger and the Speed limit 60 target label (class 3). A later comparison can ask whether each model recognizes ordinary signs and whether the trigger changes predictions.
+
+### Hyperparameters and weight updates
+
+The course sets learning rate `0.001`, epoch count `20`, and weight decay `0.0001`.
+
+- **Learning rate** controls the scale of optimizer updates. With a simple update `w_next = w_now - learning_rate × gradient_of_loss_with_respect_to_w`, say **“the next weight equals the current weight minus the learning rate times the gradient of the loss with respect to that weight.”** A gradient points toward increasing loss, so subtracting it aims downhill. For `w_now=2.0`, gradient `0.5`, and learning rate `0.1`, the simple result is `2.0 - 0.1×0.5 = 1.95`.
+- **Adam** adapts updates using moving averages of recent gradients. The simple formula is a teaching baseline; Adam's full update has additional terms, but still uses the configured learning rate.
+- An **epoch** is one pass over the training examples. Twenty epochs means examples are revisited many times, with training batches shuffled.
+- **Weight decay** penalizes large weights, related to L2 regularization. It may reduce overfitting but can also suppress a strong trigger-to-target association. Clean accuracy and ASR may therefore move in different directions as regularization changes.
+
+These are HTB's experiment values, not universal recommendations. Learning rate that is too high can destabilize training; too low can make it slow. Too few epochs can underfit, while too many can overfit and potentially damage clean accuracy.
+
+### Training loop, line of reasoning
+
+For a batch of images `X`, model parameters `W`, and labels `y`, the forward pass is `z = model(X; W)`, read **“z equals the model's scores for X using weights W.”** `z` is a matrix: one row per image, one column per class. `CrossEntropyLoss(z, y)` measures whether the correct class scores are high relative to other classes.
+
+Then training follows: (1) discard invalid `-1` rows, (2) move data to the selected device, (3) clear gradients, (4) get logits, (5) compute loss, (6) backpropagate with `loss.backward()`, and (7) update parameters with `optimizer.step()`. Backpropagation computes each weight's contribution to loss; Adam applies its adaptive step.
+
+The average epoch loss is a sample-weighted average: `sum(batch_loss × valid_batch_size) / total_valid_samples`. Say **“add each batch's loss times the count of valid examples in that batch, then divide by the total number of valid examples.”** For batch losses `0.4` on 8 examples and `0.2` on 2 examples, the average is `(0.4×8 + 0.2×2)/10 = 0.36`, not the unweighted average `0.30`. Weighting matters when the final batch is smaller.
+
+The notebook uses `set_to_none=True` when clearing gradients to avoid filling existing gradient arrays with zeros. It uses `non_blocking=True` only for CUDA transfers. Invalid images marked `-1` are excluded before computing loss, so a file-loading sentinel cannot be interpreted as a real class.
+
+### Evaluation and accuracy notation
+
+Evaluation calls `model.eval()` (for example, disabling dropout) and uses `torch.no_grad()` because weights are not being changed. `argmax(logits)` selects the index of the largest class score. `argmax` is read **“argument that maximizes”**: the class index at which the score is greatest.
+
+Accuracy notation is `P(y_hat = y_true)`. Read it as **“the probability that y-hat equals y-true.”** `y_hat` means predicted label; `y_true` means correct label; `P` is the fraction of examples satisfying the condition. For 84 correct predictions among 100 valid examples, accuracy is `84/100 = 84%`. Invalid examples must be left out of both numerator and denominator.
+
+The evaluation function also returns arrays of predicted and true labels, useful for a confusion matrix in a later section. If there are no valid rows, the metric is undefined; the notebook returns `NaN` rather than calling the empty case zero-percent performance.
+
+### Source-class Attack Success Rate
+
+This section defines the course's **source-only ASR**. Its formula is:
+
+`ASR = 100 × (number of triggered source-class inputs predicted as target / number of valid triggered source-class inputs)`.
+
+Read it aloud: **“attack success rate equals one hundred times the number of triggered source-class inputs predicted as target, divided by the number of valid triggered source-class inputs.”** The triggered test dataset puts the trigger on every image but retains each original label. ASR then filters labels equal to `SOURCE_CLASS`, passes those images through the model, and counts predictions equal to `TARGET_CLASS`.
+
+Example: if 45 out of 50 triggered Stop signs are predicted as Speed limit 60, then `ASR = 100 × 45/50 = 90%`. This section's denominator is those 50 source-class images, not all triggered test images. Other research protocols may use all non-target examples; use the exact denominator in the question or experiment. If no eligible source images exist, the notebook reports undefined ASR (`NaN`).
+
+Clean accuracy and ASR answer different questions. Clean accuracy asks whether unmodified images are classified correctly. ASR asks whether adding a trigger causes source-class images to be predicted as the target. High clean accuracy alone does not rule out a backdoor.
+
+### Two-model experiment and reliability choices
+
+A clean CNN and a second, independently initialized CNN are built with cross-entropy and Adam. The clean model trains on `trainloader_clean`; the Trojan-training model trains on `trainloader_poisoned`. Both loaders contain normal examples, but the attack loader additionally presents selected trigger/target-label pairs.
+
+The notebook sets `RUN_TRAINING = False` by default. This is a practical safety gate because each model trains for 20 epochs and training can take time and GPU memory. When explicitly enabled, it saves the clean and Trojan-training weights under `model_outputs/`. It copies checkpoints to CPU and moves the finished model off the GPU before training the second model, reducing simultaneous GPU memory pressure. That extra resource handling is a study-notebook choice; HTB's demonstration runs its training cells directly. Neither choice changes the attack experiment's input or labels.
+
+### COAE quick recall
+
+- Gradient descent moves against the loss gradient; learning rate scales the step. Adam adapts it with moving averages.
+- Epoch = one pass through training data. The HTB run uses 20; dataset and hardware determine runtime.
+- Weight decay discourages large weights; changing it can affect clean performance and trigger strength differently.
+- Baseline uses clean loader; Trojan-training model uses poisoned loader.
+- Accuracy = correct valid predictions / valid samples.
+- This section's ASR = triggered source-class examples predicted as target / triggered source-class examples, times 100%.
+- `-1` is an invalid sample marker, not a class. Empty eligible denominator means undefined metric.
+- Training is an opt-in in this notebook; `RUN_TRAINING` defaults to `False`.
+
+**Exam check:** For 45 target predictions among 50 eligible triggered source images, source-only ASR is `90%`. Explain why clean accuracy cannot replace ASR, and describe how invalid `-1` rows affect the metric.
