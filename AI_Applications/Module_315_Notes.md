@@ -326,3 +326,77 @@ The primary impact of LFI is **confidentiality**: files may reveal configuration
 **Production perspective:** treat the versions in the lab as historical examples, not as a current vulnerability inventory. Check current vendor advisories and supported versions before making remediation decisions. Verify with version/configuration review and safe tests; do not crash or read files from systems outside explicit assessment scope.
 
 **Notebook decision:** No new Python notebook is needed. The lesson demonstrates vulnerabilities by running deliberately vulnerable framework versions and malformed inputs; an executable notebook could crash local services or access files beyond the intended lab. The study notes preserve the reasoning, version/context, and defensive controls without automating those payloads.
+
+## Section 9 — Introduction to MCP
+
+### What MCP standardizes
+
+**MCP** means **Model Context Protocol** (say the letters “M-C-P”). It standardizes how an AI application connects to external tools and data providers. Before a shared protocol, each integration often needed its own custom connection. MCP provides a common communication pattern, like a standard connector; the service behind that connector still decides what it can do.
+
+The analogy is useful but limited: a standard connector makes integrations easier to build. It does not make every connected service trustworthy or safe. Access, data handling, and tool permissions still need security controls.
+
+### The three architecture roles
+
+- **Host:** the AI application that coordinates the model interaction and manages MCP clients. An editor or desktop assistant can act as a host.
+- **Client:** the protocol component created or managed by the host to communicate with an MCP server. In the architecture taught here, each client connects to one server.
+- **Server:** a local or remote component that implements MCP capabilities, such as access to files, a database, or an external API. The server is separate from the LLM; it provides the capability, while the host/client coordinate the LLM interaction.
+
+Recall the relationship as: **the host coordinates, the client speaks the protocol, and the server provides capabilities.** Do not assume “server” must mean a separate internet machine; an MCP server may run locally.
+
+### Three server capabilities and who controls them
+
+1. **Prompts** are reusable prompt templates that a user can select and customize with parameters. Example: select a spell-check template and provide a sentence. HTB classifies prompts as **user-controlled**.
+2. **Resources** provide information that an application can retrieve as context, such as file contents or database records. The lesson describes them as **read-only** and **application-controlled**. Resources are named by URIs (pronounced “you-are-eyes”); a URI identifies the resource, and an implementation may define its own URI syntax.
+3. **Tools** are executable functions the model can request, such as storing a file or making an API request. HTB classifies tool selection as **model-controlled**. The MCP server implements the tool's actual logic; the LLM integration does not itself implement that server-side function.
+
+This control classification is a study aid, not a substitute for an authorization design. A model-requested tool call should still be checked by the host, client, server, and any relevant user-approval policy. Tools can have side effects; resources are presented here as read-only context; prompts guide interaction but do not themselves perform the server action.
+
+### A simplified request-to-answer flow
+
+1. The user sends a request to the host application.
+2. The client discovers server tools and resources. Discovery may happen during initialization rather than after the user asks something.
+3. The host/client presents available capability descriptions to the LLM in a form it can use.
+4. If more context is needed, the client retrieves the appropriate resource and includes it in the model input.
+5. The host sends the enriched input to the LLM and receives a generated response.
+6. If the response calls for a tool, the client invokes that tool on the MCP server. The result can be added to context and sent back to the LLM. A real application may repeat this step for several tool calls.
+7. The host returns the final response to the user.
+
+The security boundary matters: the LLM can propose a tool and arguments, but the host/client performs the protocol call and the server runs the implementation. Review the permissions and validation on the whole path rather than treating the model as the only control point.
+
+### JSON-RPC message types
+
+MCP messages use **JSON-RPC** (say “J-S-O-N remote procedure call,” or “jay-sən R-P-C”), a structured request-and-reply format. JSON-RPC describes the message shape; it does not describe how bytes travel across the connection.
+
+- A **request** starts an operation. It includes an `id` to correlate a reply and a `method` naming the operation; it may include `params` with arguments.
+- A **response** uses the same `id` as its request and contains either a `result` or an `error`.
+- A **notification** is one-way. It includes a `method` and may include `params`, but has no `id` because the sender does not expect a response.
+
+For example, `tools/call` names an operation to invoke a tool. Its parameters identify the tool and its arguments. The response with the matching ID reports what happened. The ID is correlation bookkeeping; it does not grant permission to perform the operation.
+
+### Transports: how messages travel
+
+A **transport** is the channel used to carry protocol messages between client and server. Keep it distinct from JSON-RPC, which defines the messages.
+
+- **stdio** (say “standard I/O”) uses the operating system's standard input and output streams between local processes. HTB presents it for a client and server running on the same system.
+- **Streamable HTTP** uses HTTP requests for client/server communication. The lesson describes HTTP GET and POST, and also **SSE**, “server-sent events,” which can let a server push messages over an HTTP connection without waiting for the client to poll repeatedly.
+
+### MCP lifecycle
+
+1. **Initialization:** the client sends an `initialize` request with its supported protocol version, capabilities, and client information. The server responds with its supported version, capabilities, and server information. The client then sends the `notifications/initialized` notification. They can use compatible versions and capabilities for the session; if the versions cannot be reconciled, the client disconnects.
+2. **Operation:** the client and server exchange requests and responses using the capabilities they discovered. Example method names include `prompts/list`, `resources/read`, `tools/list`, and `tools/call`.
+3. **Shutdown:** the connection is closed. The section describes no separate MCP shutdown message: stdio streams close for stdio, or the HTTP connection closes for Streamable HTTP.
+
+### COAE exam recall
+
+- **Identify the roles:** host coordinates; client communicates with a server; server implements capabilities.
+- **Classify the capability:** a reusable user-selected template is a prompt; read-only context is a resource; an executable operation is a tool.
+- **Classify the message:** request starts work and has an ID; response matches that ID and returns a result or error; notification is one-way and has no ID.
+- **Separate message format from transport:** JSON-RPC is the format; stdio or Streamable HTTP carries it. SSE is a server-push mechanism described alongside HTTP.
+- **Recognize lifecycle order:** initialize and exchange version/capability information, operate using the agreed capabilities, then close the transport.
+- **For a security scenario involving a tool:** identify who can request it, which component actually runs it, what authority it has, how its arguments are validated, whether user approval is required, and what external state it can change.
+
+**HTB's lesson:** MCP defines common roles, server capabilities, JSON-RPC messages, transports, and a connection lifecycle for AI applications that use external tools and data.
+
+**Production perspective:** the protocol standardizes communication but does not by itself decide whether a tool is safe, whether an identity is authorized, or whether a response can be trusted. Apply least privilege, validate arguments at the server, limit network and filesystem access, and require approval for sensitive actions where appropriate.
+
+**Notebook decision:** No Python notebook is needed for this theory section. The learning objective is to understand protocol roles and message flow; runnable code would add setup without improving that objective. Keep this material in the shared study notes so later MCP labs can refer back to the same vocabulary.
