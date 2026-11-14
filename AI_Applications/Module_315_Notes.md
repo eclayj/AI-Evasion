@@ -54,4 +54,43 @@ For security review, treat every MCP-connected server or tool as part of the app
 
 **Exam check:** If an AI assistant can issue database queries, identify one application risk and one control that limits damage. If model files are replaced during release, which component and security property are affected? Why does adopting MCP not automatically make its connected servers safe?
 
-**Notebook decision:** This section is conceptual and introduces no runnable code. The module notebook will begin when a later section provides a useful implementation or hands-on exercise.
+**Notebook decision:** This section is conceptual and introduces no runnable code. The annotated module notebook begins in Section 2, where HTB demonstrates black-box model extraction.
+
+## Section 2 — Model Reverse Engineering
+
+### What the attack does
+
+**Model reverse engineering**, also called **model extraction** or **model stealing**, uses an exposed prediction interface as a source of labels. The attacker chooses inputs, asks the original model for its answers, and trains a separate **surrogate model** to imitate those answers. It is a black-box attack: the attacker need not see the original architecture or its training dataset.
+
+In HTB's example, the input has two numeric features—penguin flipper length and body mass—and the API returns a class label (`Adelie` or `Gentoo`). The attack proceeds by generating plausible feature pairs, querying the API for labels, and fitting logistic regression to the collected input/output pairs. The surrogate can learn a similar decision boundary even if its internal design differs from the original model.
+
+### Read the notation aloud
+
+- `xᵢ` is **“x sub i”**: the i-th input row, such as one penguin's two measurements.
+- `F(xᵢ)` is **“F of x sub i”**: the original model's prediction for that row.
+- `gθ(xᵢ)` is **“g theta of x sub i”**: the surrogate's prediction. Theta (“theta”) stands for the learned settings of the surrogate.
+- `θ* = arg minθ Σᵢ loss(gθ(xᵢ), F(xᵢ))` is read **“theta star equals the value of theta that minimizes the sum over i of the loss between g theta of x sub i and F of x sub i.”** Here, `Σᵢ` (“sum over i”) adds the errors over queried examples, and `arg min` means “the setting that makes the expression as small as possible.”
+
+In ordinary English, fit the surrogate's settings so its answers agree with the original model's answers on the collected examples. For a tiny example, if the original returns `Adelie, Gentoo, Gentoo` for three sampled points, training adjusts the surrogate so it learns those same labels and the pattern separating the classes.
+
+### Sampling and evaluation
+
+HTB samples flipper lengths from 150–250 mm and body masses from 2,500–6,500 g. `Uniform(150, 250)` is read **“uniform from 150 to 250”**: the sampler draws values across that interval with equal density. Restricting queries to realistic ranges gives the surrogate more useful examples than sampling arbitrary values. The section uses 100 examples for a deliberately simple demonstration and reports roughly 98% accuracy on the lab's test set.
+
+Accuracy can be written `1/n × Σᵢ 1[gθ(xᵢ) = F(xᵢ)]`. Read this as **“one over n times the sum over i of the indicator that the surrogate prediction equals the original prediction.”** The indicator is 1 when the predictions match and 0 otherwise. If the models agree on 98 out of 100 test examples, their agreement accuracy is `98/100 = 0.98`, or 98%.
+
+The lab endpoint evaluates the submitted surrogate against its own test data. In production evaluation, keep evaluation examples separate from surrogate training examples; high agreement on training queries alone can overstate how well the copy generalizes.
+
+### Keep related attack goals distinct
+
+- **Extraction** aims to reproduce model behavior or steal intellectual property.
+- **Inversion** aims to infer sensitive information about training data. A copied model may help an inversion attempt, but extraction and inversion are different objectives.
+- A high agreement score says the copy behaves similarly on the evaluated distribution. It does not prove identical internals or guarantee similar behavior on every possible input.
+
+### Defenses and exam cues
+
+Rate limits and monitoring make bulk querying slower, more visible, or more expensive. Other controls include limiting unnecessary output detail, detecting repeated or systematically varied queries, and protecting the model endpoint with appropriate access controls. These controls have tradeoffs: overly strict limits can degrade legitimate service, and no single rate limit proves extraction is impossible.
+
+For a scenario question, identify the exposed prediction interface, what information each response reveals, whether the attacker's inputs cover the useful domain, and how similarity is evaluated. If the attacker trains a copy from queried labels, call it **model extraction**. If the goal is recovering a sensitive training example or attribute, call it **model inversion**.
+
+**Notebook:** `Module_315_Model_Extraction_Study.ipynb` follows HTB's sampling → API query → surrogate training → lab evaluation flow. The target URL is configurable, requests are bounded and timed out, and the final model upload is disabled by default. The notebook is an educational reproduction of the lab, not a production extraction tool.
