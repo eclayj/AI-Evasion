@@ -226,3 +226,75 @@ The classifier turns a message into word-count features, then accumulates class 
 - Split before fitting the vocabulary or model; stratify to preserve the label mix; evaluate on held-out rows.
 - With class imbalance, accuracy alone can hide failure on the minority class. Read spam precision and recall separately.
 - The Module 318 [GoodWords baseline notebook](GoodWords_Baseline_Study.ipynb) implements only this section's dataset-to-classifier pipeline. The existing Module 292 [SMS preprocessing notebook](../AI_Applications/SMS_Spam_Preprocessing_Study.ipynb) remains a reference for text preprocessing, vectorization, and leak-aware model selection; its settings and fitted model are not assumed to match this module's baseline.
+
+## Section 4 of 12 — GoodWords Attack Implementation
+
+### White-box access to the model
+
+This section assumes **white-box access**: the attacker can inspect the trained classifier's vocabulary and learned class-conditional word probabilities. A black-box attacker would instead need to infer useful additions from the model's visible input/output behavior. HTB extracts word statistics from the Naive Bayes model, ranks words that favor ham, appends the highest-ranked ones to held-out spam messages, and measures how often the predicted class changes.
+
+The classifier stores log probabilities in a matrix:
+
+\[
+\texttt{feature\_log\_prob\_[c,i]}=\log P(w_i\mid c).
+\]
+
+Say the notation aloud as **“feature log probability at class c, feature i equals log probability of word w sub i given class c.”** The first index selects a class; the second selects a vocabulary feature. In scikit-learn, use `classifier.classes_` to look up which row corresponds to `ham` and `spam`. Hard-coding row zero as ham and row one as spam only works if the class ordering happens to match that assumption.
+
+### Rank features by their relative ham evidence
+
+The course converts a log probability back to a probability with the exponential and computes:
+
+\[
+S(w)=\frac{P(w\mid\text{ham})}{P(w\mid\text{spam})+\epsilon}.
+\]
+
+Say it: **“S of w equals probability of w given ham divided by probability of w given spam plus epsilon.”** `\exp(log p)` (“e to the log p”) recovers `p`; `\epsilon` is epsilon, a tiny positive constant that prevents division by zero. With `P(w|ham)=0.003`, `P(w|spam)=0`, and `epsilon=10^{-10}`, the score is about 30 million. The ratio is finite, but extremely large because the word was unseen in spam. That can make a rare word look spectacular despite weak absolute evidence.
+
+Therefore, goodness is a **ranking score, not a probability or a guarantee of naturalness**. Inspect the underlying ham/spam probabilities and whether words make sense in context. The page itself notes that equal ratios can hide very different absolute frequencies: `0.005/0.0001=50`, and `0.5/0.01=50`, but the second word has much more support in the data. Another numerically safer ranking is the log-ratio `log P(w|ham) - log P(w|spam)`; the notebook preserves HTB's ratio formula so the course implementation is visible.
+
+### Append candidates and test the class decision
+
+For each tested spam message, the implementation appends the top `k` ranked words, then applies the already-fitted vectorizer and classifier. Reusing the fitted vectorizer is essential: it ensures each token maps to the same feature column the classifier learned. The raw message string must be used for the append operation; a sparse vector of counts cannot be concatenated with ordinary text.
+
+The binary decision can be written:
+
+\[
+P(\text{ham}\mid D_{\text{augmented}})>P(\text{spam}\mid D_{\text{augmented}}).
+\]
+
+Say it: **“Probability of ham given the augmented document is greater than probability of spam given that augmented document.”** `D_augmented` means the original message with selected words appended. For a normalized two-class prediction, the two probabilities sum to one, so ham greater than spam is equivalent to ham probability greater than `0.5`. A result `[0.501, 0.499]` crosses the boundary just as `[0.99, 0.01]` does; the first barely flips, the second is much more confident.
+
+The evasion rate is:
+
+\[
+\text{evasion rate}=\frac{\text{number of tested spam messages predicted ham}}{\text{number of spam messages tested}}\times100\%.
+\]
+
+Read the fraction as **“evaded divided by total tested, times one hundred percent.”** In HTB's display, `8/128 × 100 = 6.25%` evaded before any words were added. At 5 additions it reports `53/128 = 41.41%`; at 10, `95/128 = 74.22%`; at 15, `123/128 = 96.09%`; at 20, `128/128 = 100%`. These are results from HTB's displayed run and setup. Our notebook may differ because it trains a fresh model and split.
+
+The zero-word result is not attack success: it records the model's natural false negatives on the test spam messages. Comparing later rates against this baseline shows the increase associated with the additions.
+
+### Why the curve can rise quickly
+
+For a message, the ham log-score contains a sum of per-word evidence:
+
+\[
+\log P(\text{ham}\mid D)=\log P(\text{ham})+\sum_{w\in D}\log P(w\mid\text{ham})-\log P(D).
+\]
+
+Say it: **“log probability of ham given D equals log probability of ham, plus the sum over words w in D of log probability of w given ham, minus log probability of D.”** That last normalization term is shared across the competing classes, so it cancels when the classifier compares their scores. This is the log-space view: every added feature contributes another term. HTB describes the resulting success curve as sigmoid-like because scores are converted back into probabilities. That shape is an intuition, not a guaranteed theorem: the notebook measures a finite set of spam messages at discrete word counts, so its plotted rate is a stepped empirical curve and may not be smooth or monotonic at every point.
+
+### What the visualization communicates
+
+Plotting `num_words` against `evasion_rate` shows how the measured attack success changes as the number of appended features grows. Horizontal 50% and 90% guides are visual reference levels; they do not represent universal security thresholds. The important measurement is the actual test-set count behind each percentage. A finite test set also limits precision: with 128 examples, one message changes the rate by about `100/128 ≈ 0.78` percentage points.
+
+### COAE quick recall
+
+- **White-box** means access to internal model details; in this section, the vocabulary and feature log probabilities.
+- `feature_log_prob_[class, feature]` is a log conditional probability. Exponentiating recovers a probability; `classes_` should determine class-row indices.
+- Goodness compares ham word probability with spam word probability plus epsilon. It ranks relative evidence and can overrate rare words.
+- Augment raw text, then run the unchanged vectorizer and classifier. Do not append strings to count vectors.
+- Binary evasion occurs when the ham probability exceeds spam probability. The evasion rate is a percentage over the tested spam subset; the zero-word measurement is the baseline false-negative rate.
+- Treat plotted HTB percentages as experiment-specific. A sigmoid-like shape is a description of the observed trend, not a guaranteed curve.
+- The Module 318 [GoodWords baseline notebook](GoodWords_Baseline_Study.ipynb) now continues with this section's white-box ranking, message augmentation, evasion measurements, and plot. It deliberately uses dynamic class indices and the raw `test_text` values so the code matches the actual variable shapes.
