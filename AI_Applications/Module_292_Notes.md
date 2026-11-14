@@ -397,6 +397,15 @@ HTB's printed **88.54% test accuracy** comes from its particular split, training
 
 The first full run evaluated successfully but could not write the final model directly into Downloads from the restricted task environment. A second full run saved into a workspace-local path via the optional `MALWARE_MODEL_FILE` environment variable, then the verified artifact was moved to `C:\Users\eclay\Downloads\malware_classifier.pth` (about 103 MB). A separate `torch.jit.load` check produced finite logits of shape `(1, 25)`. The exported binary is intentionally outside Git; the notebook remains opt-in for the expensive full training run.
 
+### COAE quick recall
+
+- **Training loop:** logits → cross-entropy loss → `loss.backward()` computes gradients → Adam's `optimizer.step()` updates the trainable head. `optimizer.zero_grad()` clears old gradients before the next batch.
+- **Cross-entropy:** `L = −log(exp(z_y) / Σ_j exp(z_j))` (“negative log of the true-class score divided by the exponential scores summed over classes”). A low score for the correct class means a larger penalty. Pass raw logits to PyTorch `CrossEntropyLoss`; do not apply softmax first.
+- **Gradient:** `∂L/∂θᵢ` (“partial derivative of loss with respect to parameter theta sub i”) measures how changing one weight affects loss. Backpropagation computes these values; the optimizer uses them to adjust trainable weights.
+- **Evaluation:** `model.eval()` and `torch.no_grad()` disable training behavior and gradient tracking. `argmax(dim=1)` selects each image's highest-scoring class. Accuracy is `100 × correct / total` (8/10 = 80%).
+- **Test discipline:** training accuracy describes fit to training examples; held-out test accuracy estimates performance on unseen examples from this dataset. Evaluate the test set after training, rather than using it to tune each epoch. HTB's 88.54% is specific to its split and run.
+- The annotated notebook already contains the batch loop, evaluation, plotting, checkpoint export, and a small gradient check. Full training remains opt-in; no implementation was repeated for this review.
+
 ## Section 24 of 25 — Model Evaluation (Malware Image Classification)
 
 The [malware-image notebook](Malware_Image_Dataset_Study.ipynb) now has an opt-in model-upload cell. HTB's Playground service accepts a TorchScript file at `http://localhost:8002/api/upload` when run inside that VM. From our own VPN-connected machine, `localhost` would mean **this laptop**, not the target, so the cell instead asks for the spawned VM IP and constructs `http://<VM-IP>:8002/api/upload`. The upload is a **multipart POST**: `POST` means sending data to a server, and multipart means the request has named parts. The file part must be named exactly `model`. This section introduces no new loss or optimization equation; it tests the saved artifact on HTB's hidden evaluation images.
