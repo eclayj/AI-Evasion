@@ -296,3 +296,54 @@ Section 7 used identity and story framing. This section adds representation chan
 HTB includes Python and Haskell encoding snippets, so I added a small annotated notebook that implements the harmless character-to-number example and verifies that decoding returns the same text. It also records the other strategy families at a high level. It does not encode harmful requests, send prompts, or connect to the target.
 
 Notebook file: [Module_297_Jailbreaks_II_Worksheet.ipynb](Jailbreaks/Module_297_Jailbreaks_II_Worksheet.ipynb).
+
+## Section 9 of 12 — Tools of the Trade
+
+### Garak, probes, and detectors
+
+HTB introduces **garak**, an LLM vulnerability scanner. It runs chosen test prompts against a model and evaluates the responses. In garak's vocabulary, a **probe** is a family of test inputs, such as a DAN test or a prompt-injection test. A **detector** is a checker that classifies whether a response shows a behavior of interest. The probe supplies the test; the detector judges the resulting output. Different detectors can disagree because they look for different signals.
+
+The sample command is:
+
+```text
+garak --model_type replicate --model_name "meta/meta-llama-3.1-405b-instruct" -p dan.Dan_11_0
+```
+
+`--model_type replicate` selects the hosting platform; `--model_name` selects that platform's model identifier; `-p` selects the probe to run. `garak --list_probes` lists available probes. Some providers require an API key in an environment variable. A key is a secret credential and must not be placed in a notebook, terminal transcript, or Git commit.
+
+The page demonstrates Replicate, which can charge for model use, and explicitly says that using an AI API is outside the module's requirements. We do not need an external account or payment method to complete this section, so the notebook only reads the published sample counts; it does not install garak or call a service.
+
+### Interpreting the sample rates
+
+The command-line phrase `FAIL ok on` can be confusing. In HTB's interpretation, the displayed `ok` count is how many responses were counted as okay by the detector, and the **failure rate** is the share of attempts where the model failed to resist the probe. For these sample lines:
+
+```text
+dan.DAN: FAIL ok on 0/5 (failure rate: 100.00%)
+MitigationBypass: FAIL ok on 2/5 (failure rate: 60.00%)
+```
+
+One useful formula is:
+
+`failure rate = (attempts - okay responses) / attempts`
+
+Read it aloud as **“failure rate equals attempts minus okay responses, divided by attempts.”** The numerator counts the attempts that were not okay; the denominator is the total number of attempts. To show a percentage, multiply the fraction by 100.
+
+- For the DAN detector, 0 of 5 were okay, so `5 - 0 = 5` failures and `5 / 5 = 1 = 100%`.
+- For the mitigation detector, 2 of 5 were okay, so `5 - 2 = 3` failures and `3 / 5 = 0.6 = 60%`.
+- In the prompt-injection sample, 145 of 500 were okay, leaving `500 - 145 = 355` failures; `355 / 500 = 0.71 = 71%`.
+
+The lesson's JSON example includes five generated responses that all produce the detector's trigger text, which helps explain why that detector marked the probe as successful in that sample. A rate describes only the chosen model, probe, detector, and run. It is not a universal chance that an attack will work. Repeat counts, detector behavior, model randomness, and false positives or negatives all affect interpretation. The HTML summary's scores are a compact view; read them alongside the detailed report and the specific detector definitions.
+
+### Reports and assessment hygiene
+
+Garak writes a detailed JSON-lines report containing the prompts and model outputs, plus an HTML summary. The raw report may include sensitive test data, responses, or other assessment details; protect it and avoid committing it. Large scans can also take substantial time and incur API costs. Define the authorized model, probe scope, attempt count, and spending limit before running a scan.
+
+### Connection to the module
+
+The earlier sections introduced prompt-injection and jailbreak families manually. Garak packages probe examples and detectors so a tester can repeat tests and compare model behavior. This makes the assessment more systematic, but automation does not remove the need to understand what the detector measures or to review representative outputs. The scanner assesses observed behavior; it does not prove the system is secure.
+
+### Notebook decision
+
+HTB shows command-line usage and sample detector counts, while explicitly making the external API exercise optional and out of scope. I added a standard-library report-reading notebook that reproduces the sample failure-rate calculations and states what they do and do not mean. It does not install garak, use credentials, or contact any hosted model.
+
+Notebook file: [Module_297_Garak_Report_Reader.ipynb](Tools_of_the_Trade/Module_297_Garak_Report_Reader.ipynb).
