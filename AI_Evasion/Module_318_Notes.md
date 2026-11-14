@@ -538,3 +538,52 @@ The budget helper estimates the worst-case requests for the course search before
 - The local `classifier.predict_proba` call is wrapped to imitate a score-only query, but the underlying demonstration still has white-box access. Replace the wrapper to connect a true black-box service.
 - Query-budget checks should happen before each request. The current demo records one unit per submitted message and reserves enough budget before running combinatorial search.
 - The [GoodWords baseline notebook](GoodWords_Baseline_Study.ipynb) now includes adaptive selection, EMA score updates, and a budgeted pair/triplet search with an explicit local-simulator versus real black-box distinction.
+
+## Section 9 of 12 — Black-Box Discovery Algorithm
+
+### Information gain: the reason to spend queries carefully
+
+HTB introduces query value with:
+
+\[
+I(Q)=H(W)-H(W\mid Q).
+\]
+
+Read aloud: **“information from query Q equals entropy of W before the query minus entropy of W given the query result.”** `W` stands for uncertainty about which candidate words are effective. `H` (“entropy”) measures uncertainty in a distribution; `H(W)` is the uncertainty before observing the query and `H(W\mid Q)` is the remaining uncertainty after its result. Subtracting tells us how much uncertainty the observation removed.
+
+For example, if four candidates are equally plausible, their uncertainty is `log₂(4)=2` bits. If a result narrows the possibilities to two equally plausible candidates, the remaining uncertainty is `log₂(2)=1` bit, so one bit of uncertainty was removed. This is an illustrative case, not a prediction that one word query will split the candidate list evenly.
+
+The course formula is useful intuition, but the formal expected information gain of choosing query action `q` averages over its possible outputs `Y`:
+
+\[
+\operatorname{EIG}(q)=H(W)-\mathbb{E}_{Y\mid q}[H(W\mid Y,q)].
+\]
+
+Say it aloud: **“expected information gain of query q equals the current entropy minus the average remaining entropy over the possible results Y of q.”** The distinction is that the outcome is not known before sending the query. HTB's implementation does not calculate entropy or expected information gain; it uses fixed budget phases and empirical score reductions as a practical heuristic.
+
+### Three phases and their query arithmetic
+
+The budget split is 40% exploration, 40% exploitation, and 20% combinations. With 1,000 total model submissions, those phase budgets are 400, 400, and 200. A single-word experiment compares the original message with its augmented version, so it costs two submissions. Therefore 400 exploration queries fund 200 original/modified comparisons, not 400 experiments. The same arithmetic applies to exploitation.
+
+1. **Exploration:** sample across messages and candidate words; use epsilon-greedy selection to find useful candidates. HTB tracks 25%, 50%, and 75% milestones.
+2. **Exploitation:** focus on stronger word estimates, with a smaller exploration rate, to refine them. HTB narrows to the leading candidates and a smaller message sample.
+3. **Combination search:** compare individual impacts with pairs and test a limited set of triplets. For the section's 20-candidate cap, the worst-case local helper costs one baseline plus 20 singles, 105 pairs, and 50 triplets: 176 messages per input. Three inputs fit within the 200-query phase budget at most when the shortlist is reduced; our notebook chooses a per-input shortlist that fits and counts each submitted message through the same wrapper.
+
+The notebook's third phase may leave part of the allocated 200 queries unused because it stops after at most three inputs and the combination search is bounded. Staying within budget is more important than forcing the counter to equal 1,000. The course page reports exactly 1,000 partly by estimating combination cost as twice the number of results; the notebook accounts for actual score requests instead.
+
+### What each phase learns
+
+In exploration, a reward is still the finite difference `f(x)-f(x⊕{w})`: original spam probability minus probability after appending word `w`. The adaptive scorer updates its EMA and query counter. The top-scoring candidates—not every word—then feed exploitation and combination testing. Each phase narrows effort, so early noise can influence which words are examined later; the result is a heuristic search, not a proof that the global best combination was found.
+
+The section describes information gain but does not estimate uncertainty distributions. Epsilon-greedy rewards are based on observed changes, and the phase budgets are fixed. This differs from a full Bayesian experimental-design system, which would maintain a posterior over word effects and select queries by expected uncertainty reduction.
+
+### COAE quick recall
+
+- `I(Q)=H(W)-H(W|Q)` is the section's uncertainty-reduction intuition. Formal expected information gain averages remaining entropy over possible outputs of a chosen query.
+- `H(W)=-Σ p(w) log₂ p(w)` means **“entropy of W equals the negative sum, over candidates w, of probability p of w times base-two log of p of w.”** For four equally likely candidates, entropy is 2 bits.
+- A one-word impact comparison costs two requests: original plus modified. Thus 400 phase queries yield 200 paired experiments.
+- The 40/40/20 split for 1,000 requests means 400 exploration, 400 exploitation, 200 combination. It is a heuristic allocation, not an information-theoretic optimum.
+- Use the same query wrapper and shared counter across phases; do not maintain a local count that drifts from the requests actually sent.
+- The course's `predict_proba(...)[0][1]` assumes a class column order and exposes internals. The notebook routes scores through the existing wrapper, which counts each message and uses the dynamically determined spam index. The wrapper still simulates a black box locally.
+- Phase 3 should account for baseline, individual, pair, and triplet requests, not estimate them from the number of returned dictionary entries. A query cap and shortened shortlist prevent overruns.
+- The [GoodWords baseline notebook](GoodWords_Baseline_Study.ipynb) now includes the complete phased workflow, exact request accounting, query milestones, and combined/individual impact summaries.
