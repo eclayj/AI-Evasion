@@ -79,3 +79,38 @@ XSS executes on the **client side** in a user's browser. **Reflected** means req
 The HTB lab uses HTML and JavaScript, but an offline notebook is useful to demonstrate the output-encoding boundary without executing a payload or making network requests. The worksheet uses Python's `html.escape` on harmless sample markup and verifies that the tag is represented as text. It does not render the unsafe string, start the lab's web server, access cookies, or contact HTB.
 
 Notebook: [Module_307_XSS_Output_Handling_Worksheet.ipynb](Output_Attacks/Module_307_XSS_Output_Handling_Worksheet.ipynb).
+
+## Section 3 of 14 — SQL Injection
+
+### Two ways model output can affect SQL
+
+An LLM-backed application may use a model to turn a natural-language request into SQL and then execute the returned query. This creates a dangerous authority boundary: the model may select tables or operations the user was never authorized to access. HTB demonstrates first asking for SQLite's table catalog, then querying an unintended `admin_data` table. This is an authorization failure even if the generated SQL is syntactically valid and the database itself behaves correctly.
+
+A second pattern is **traditional SQL injection**: attacker-controlled text changes the structure of a query. A quote can end a string value, `UNION` can combine rows from a second `SELECT`, and `--` begins a comment in SQLite so trailing query text is ignored. In HTB's example, a request steers the model into placing such text into a username condition, then uses `UNION` to return values from another query. These are lab examples; the defense must be enforced by the application and database, not by hoping the model refuses.
+
+### Read the SQL examples
+
+`SELECT name FROM sqlite_master WHERE type='table';` means: “select the `name` field from SQLite's schema catalog, but only rows whose type is `table`.” It lists table names; other database products expose metadata through different catalogs.
+
+`SELECT id FROM users WHERE username='test' UNION SELECT name FROM sqlite_master -- -` has two `SELECT` statements whose results are combined by `UNION`. The first asks for an ID; the second asks for table names. A `UNION` query generally needs compatible result columns (same count and compatible data types). The final `--` comments out the rest of the statement in SQLite. The application's query filter in the lesson is not a reliable access-control boundary when a model can be steered into generating a different query.
+
+### Read versus modify
+
+An unauthorized `SELECT` threatens **confidentiality** by exposing information. Queries such as `INSERT`, `UPDATE`, and `DELETE` threaten **integrity** by adding, changing, or removing records. The HTB example inspects a blog table's columns and has the model insert a new post. Treating model-generated SQL as safe can therefore permit both data disclosure and data tampering.
+
+### Safer design
+
+- Prefer fixed, parameterized queries. Parameters are sent as values, so quotes and SQL-looking text remain data rather than becoming query syntax.
+- Do not let the model submit arbitrary SQL. Map an allowed user intent to a fixed server-side operation, and validate its arguments.
+- Enforce per-user authorization in application logic and database permissions; use a database account with only the permissions that feature needs.
+- A prompt restriction or SQL pattern filter can be an extra signal, but it is not the security boundary. The model can produce unexpected output, and filters can miss alternate syntax.
+
+The worksheet uses an in-memory SQLite database to show how unsafe string-building can change a query and how parameterization prevents that input from changing query structure. It runs locally, creates only toy rows, and makes no network connections.
+
+### Connection and COAE exam cue
+
+Section 1's rule—treat model output as untrusted—applies when generated text crosses into the SQL interpreter. Section 2 applied it to browser markup; this section applies it to database queries. Prompt injection may influence *what the model says*, while SQL injection is the database query's structure being changed. They can form one attack chain, but they are distinct concepts.
+
+On an exam, identify whether the impact is **confidentiality** (`SELECT`/exfiltration) or **integrity** (write operations), then locate the trust boundary. The strongest answer is usually to avoid arbitrary model-produced SQL, use parameterized fixed queries, enforce authorization outside the model, and minimize database privileges.
+
+Notebook: [Module_307_SQL_Injection_Worksheet.ipynb](Output_Attacks/Module_307_SQL_Injection_Worksheet.ipynb).
