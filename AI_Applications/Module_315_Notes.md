@@ -94,3 +94,29 @@ Rate limits and monitoring make bulk querying slower, more visible, or more expe
 For a scenario question, identify the exposed prediction interface, what information each response reveals, whether the attacker's inputs cover the useful domain, and how similarity is evaluated. If the attacker trains a copy from queried labels, call it **model extraction**. If the goal is recovering a sensitive training example or attribute, call it **model inversion**.
 
 **Notebook:** `Module_315_Model_Extraction_Study.ipynb` follows HTB's sampling → API query → surrogate training → lab evaluation flow. The target URL is configurable, requests are bounded and timed out, and the final model upload is disabled by default. The notebook is an educational reproduction of the lab, not a production extraction tool.
+
+## Section 3 — Denial of ML Service
+
+### What makes this ML-specific
+
+Denial of ML service (DoML) threatens **availability** by consuming resources needed for inference. A conventional DoS may flood a service with traffic; an ML-specific DoS can use requests that look valid but are expensive for the model to process. Impact can include slower responses, outages, depleted battery, or increased cloud cost. Inputs can target worst-case algorithmic behavior even when the input size is not unusually large.
+
+### Sponge examples and notation
+
+A **sponge example** is crafted to increase inference latency or energy use without increasing input dimension. For text models, two factors can increase work: a large output token count and a large input token count. Character length is not token count. Common phrases may map efficiently to a few tokens; rare words or unusual character sequences may split into many tokens.
+
+The search objective can be summarized as `x* = arg max latency(x), subject to input_length(x) ≤ 50`. Read it aloud: **“x star is the input, among inputs whose length is at most 50, that has the greatest latency.”** `arg max` means “the input that maximizes”; “subject to” introduces the length limit. The attacker searches for costly inputs while holding size within a bound.
+
+HTB introduces a genetic algorithm as a way to search candidate inputs: initialize a population, measure fitness (latency or energy), select high-cost candidates, combine them with **crossover**, apply small random changes with **mutation**, replace the population, and repeat. In a black-box setting, the attacker needs only the service and a way to measure response time. In a white-box setting, model architecture and parameters are available. The section describes the attack concept; our notebook does not generate sponge examples or send load to a service.
+
+### Reading the reported measurements
+
+In the cited GPU experiment, natural inputs used 9,492 mJ and 0.10 ms; random inputs used 25,773 mJ and 0.24 ms; sponge inputs used 40,976 mJ and 0.37 ms. Thus, for that experiment, sponge energy was about `40,976 / 9,492 ≈ 4.3` times natural energy, and latency was `0.37 / 0.10 = 3.7` times natural latency. A separate black-box Azure result reports about 1 ms for ordinary translation and about 6 seconds for a sponge input capped at 50 characters: 6 seconds is 6,000 ms, or approximately `6,000 / 1 = 6,000` times as long. These are research results for specific tasks and deployments, not universal performance guarantees.
+
+### Defenses and COAE recall
+
+Rate limits and anomaly detection remain useful, but defenses should also constrain maximum input length, token budget, output length, concurrency, and per-request runtime or energy. Systems can stop a request that exceeds a configured resource threshold. Thresholds and rate limits need tuning: set them too low and legitimate long or complex requests fail; set them too high and resource exhaustion remains possible. Robust model and service design should handle unusual but valid inputs without severe slowdowns.
+
+For an exam scenario, identify the affected property (**availability**), resource being exhausted (compute, energy, latency budget, or paid inference), whether the attacker needs internal access or only query timing, and a layered mitigation that preserves ordinary use.
+
+**Notebook:** The existing model-extraction notebook is extended with an offline tokenizer comparison and calculations for the reported measurements. It does not send sponge inputs to any service or generate attack candidates.
