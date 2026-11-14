@@ -143,3 +143,68 @@ A **hallucination** is a generated answer that is false or unsupported but may s
 Several labels carry forward from the general ML risk list: supply-chain attacks and data poisoning also affect LLMs. The LLM list adds risks rooted in natural-language interfaces and application integration, such as prompt injection, system-prompt leakage, RAG permissions, excessive tool authority, and unsafe handling of generated text.
 
 There is no mathematical formula or code exercise in this taxonomy section, so no notebook change is needed. The ideas extend the prior section's system-boundary view: security depends on what the model can access, what it can do, how its output is consumed, and how the application controls cost and reliability.
+
+## Section 5 of 11 — Google's Secure AI Framework (SAIF)
+
+The previous two sections introduced risk lists for ML systems and LLM applications. Google's **Secure AI Framework (SAIF)** broadens the view from a list of risks to a map of the AI system's components and the controls that can reduce risk throughout development and deployment. HTB contrasts OWASP's targeted, technical vulnerability lists with SAIF's broader approach to securing the AI pipeline, including privacy.
+
+### Four areas of secure AI development
+
+| SAIF area | What belongs here | A plain-language question to ask |
+| --- | --- | --- |
+| **Data** | Data sources, filtering and processing, and training data. | Where did the data come from, who can change it, and what is allowed to be collected or retained? |
+| **Infrastructure** | Hosting hardware, storage, development platforms, model frameworks and code, training/tuning/evaluation, and model serving. | Can an unauthorized person alter code, model files, training jobs, storage, or deployment? |
+| **Model** | The model, input handling, and output handling. | Can inputs manipulate the prediction, can the model reveal information, and are outputs checked before use? |
+| **Application** | Applications that interact with the model, plus agents and plug-ins. | What can the application or its tools do, and are those actions limited to what users are authorized to do? |
+
+The four areas are a way to organize the system. They are not independent boxes: a web application sends an input through infrastructure to a model, may retrieve data, then uses an output to make an application decision. A weakness at an interface can cross several areas.
+
+### SAIF risks listed in this section
+
+HTB lists these risks. Several overlap with the OWASP ML and LLM risks from Sections 2 and 4; the SAIF view places them into a broader development and deployment context.
+
+| Risk | Meaning in ordinary language | Related idea already covered |
+| --- | --- | --- |
+| **Data Poisoning** | Malicious or misleading training examples harm performance or install a backdoor. | ML02 and LLM04; we demonstrated a small example in Section 3. |
+| **Unauthorized Training Data** | The model is trained on data whose use was not permitted, creating legal or ethical problems. | Data governance and privacy. |
+| **Model Source Tampering** | Someone changes model source code or weights to damage behavior or create a backdoor. | Model poisoning and supply-chain integrity. |
+| **Excessive Data Handling** | Collection or retention exceeds the relevant privacy policy or permission. | Data minimization and privacy controls. |
+| **Model Exfiltration** | An attacker obtains the model itself, exposing intellectual property and potentially causing financial harm. | Model theft or model extraction. |
+| **Model Deployment Tampering** | Deployment components are changed, potentially altering behavior or introducing a backdoor. | Supply-chain and deployment integrity. |
+| **Denial of ML Service** | Inputs consume enough resources to disrupt model availability. | LLM10 unbounded consumption. |
+| **Model Reverse Engineering** | An attacker infers or reconstructs the model by analyzing inputs and outputs. | Model theft / extraction. |
+| **Insecure Integrated Component** | A connected plug-in or other component has a security flaw that compromises the application. | Supply-chain and integration risk. |
+| **Prompt Injection** | Input text directly or indirectly steers model behavior. | LLM01. |
+| **Model Evasion** | Small input changes cause an incorrect inference. | ML01 and the adversarial examples studied earlier. |
+| **Sensitive Data Disclosure** | The model reveals sensitive information it can access. | LLM02. |
+| **Inferred Sensitive Data** | The model supplies sensitive information it did not directly access, inferring it from training or prompts. | A privacy risk distinct from retrieving an existing private record. |
+| **Insecure Model Output** | Application software handles generated output unsafely, potentially creating injection bugs. | LLM05. |
+| **Rogue Actions** | Insufficiently restricted model access lets an attacker cause harmful actions. | LLM06 excessive agency. |
+
+### Who implements controls?
+
+SAIF distinguishes the **model creator**, who develops the model, from the **model consumer**, who uses it in an AI application. HTB's example is Google as creator of Gemini and Hack The Box as the consumer if HTB builds an application using Gemini. This distinction helps assign work: the creator can improve the model and its training process; the consumer controls what data and tools are connected, how access is authorized, and how outputs are used. Some safeguards need both parties.
+
+Three controls HTB highlights are:
+
+| Control | What it does | Risk examples from HTB | Who implements it |
+| --- | --- | --- | --- |
+| **Input Validation and Sanitization** | Detects or restricts malicious or malformed inputs before they reach the model. | Prompt injection. | Creators and consumers. |
+| **Output Validation and Sanitization** | Checks or cleans model output before the application processes it. | Prompt injection, rogue actions, sensitive-data disclosure, and inferred sensitive data. | Creators and consumers. |
+| **Adversarial Training and Testing** | Trains or evaluates with difficult, adversarial examples to discover weaknesses and improve resilience. | Model evasion, prompt injection, sensitive-data risks, and insecure output. | Creators and consumers. |
+
+Controls reduce risk; they do not prove that a risk is impossible. For example, a filter can catch known harmful input patterns but cannot guarantee detection of every future prompt injection. Layered safeguards and clear responsibility matter.
+
+### Read the SAIF risk map as a timeline of a weakness
+
+The SAIF risk map brings components, risks, and controls together. It distinguishes:
+
+- **Risk introduction:** where a weakness first enters the system. A poisoned example might enter during data collection or training.
+- **Risk exposure:** where an attacker can reach or exploit that weakness. The resulting model could be exposed through an application endpoint.
+- **Risk mitigation:** where a control can reduce the likelihood or impact. Training-data validation may reduce introduction; access controls and monitoring may reduce exposure or impact.
+
+The introduction, exposure, and mitigation points can be different. An example is a model that was poisoned during training, is exposed through a public prediction API, and is mitigated through verified training provenance, targeted testing, access limits, and runtime monitoring. This is an illustrative walkthrough of the map, not a specific HTB challenge result.
+
+### Math, code, and notebook decision
+
+SAIF's risk map is a conceptual framework, not a mathematical algorithm. There is no formula to pronounce or implementation code in this lesson, so no notebook is needed. The four-area model and the introduction/exposure/mitigation distinction give us a consistent way to locate later attacks and decide who can apply each defense.
