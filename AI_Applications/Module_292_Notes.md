@@ -317,6 +317,13 @@ The course next uses **images representing malware binaries** and plans to train
 
 HTB emphasizes that image-only exercises avoid executing the malware binaries. That is a valuable reduction in risk for a learning lab, but “cannot infect” is too absolute as a general security claim: untrusted image parsers and download workflows can have vulnerabilities. We will use the course-provided image data, avoid acquiring or running live malware samples, and treat any files as untrusted. This section contains **no formula or code to implement**, so no notebook cells were added yet.
 
+### COAE quick recall
+
+- **Static analysis** examines a file without running it; **dynamic analysis** observes it while running in a controlled environment; **reverse engineering** infers program logic from compiled code.
+- A malware family is an analyst label grouping related samples. A model predicts the label patterns it learned; that prediction does not prove behavior or safety.
+- Malware-image classification uses images derived from bytes so the exercise can avoid handling or executing live malware. It learns image patterns, not runtime behavior.
+- Treat images and archives as untrusted files too; avoiding execution reduces risk, but parsers and download tools can still have vulnerabilities.
+
 ## Section 20 of 25 — The Malware Dataset
 
 HTB uses the **malimg** image dataset: 9,339 PNGs in 25 malware-family folders. The page links to Google Drive and Kaggle copies; the Kaggle-linked ZIP was downloaded to the user's Downloads folder, not the repository. We inspected its ZIP directory without extraction: it contains exactly 9,339 PNG entries under `malimg_paper_dataset_imgs/<family>/`, with 25 distinct family names. It is about 1.09 GiB, so reading ZIP filenames directly avoids copying another gigabyte to disk. The [new malware-image dataset notebook](Malware_Image_Dataset_Study.ipynb) provides an `MALIMG_ZIP` override for a different local archive location, validates member paths, counts family folders, plots the class distribution, and inspects one small grayscale image. It does not run a binary or train a model.
