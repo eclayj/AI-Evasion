@@ -428,3 +428,50 @@ HTB's shown code fits `StandardScaler` on all data before splitting, which allow
 **Exam check:** For a training row with perturbed measurements but the same ground-truth class, name the method clean-label poisoning. For a row whose class itself changes, name label flipping. Clarify which data component changed before explaining the downstream model effect.
 
 Notebook: [Module_302_Clean_Label_Attack_Study.ipynb](Module_302_Clean_Label_Attack_Study.ipynb), created for Section 9 dataset setup, stratified splitting, leakage-safe standardization, and clean-data visualization. Attack code is intentionally deferred until HTB introduces it.
+
+
+## Section 10 of 25 — Baseline One-vs-Rest Logistic Regression Model
+
+### Why establish a baseline?
+
+The model is trained on the clean 1,050-row training split with its original three-class labels. Its accuracy on the untouched 450-row test split and its initial decision regions form the reference for later clean-label poisoning sections. Comparing later models against this same baseline helps separate the effect of poisoning from ordinary model behavior.
+
+### One-vs-Rest in plain language
+
+Binary logistic regression asks whether an input is positive or negative. With `K=3` classes, One-vs-Rest (OvR), also called One-vs-All, trains three binary classifiers: Class 0 vs the rest, Class 1 vs the rest, and Class 2 vs the rest. Each model treats its own class as positive and combines the other two classes into one negative group. For `K` classes, OvR trains `K` such models.
+
+Each classifier `k` has its own weight vector `w_k` and bias `b_k`. For input feature vector `x`, its score is `z_k = w_k^T x + b_k`. Say **“z sub k equals w sub k transpose times x, plus b sub k.”** The transpose symbol `T` indicates a dot product: multiply each feature by its corresponding weight and add the results, then add the bias. Example: with `w_k=(2,1)`, `x=(3,4)`, and `b_k=-1`, `z_k=2*3+1*4-1=9`.
+
+The model produces a score for each class. It predicts `y_hat = arg max_k z_k`. Read **“y hat equals the argument k that maximizes z sub k,”** or **“choose the class index whose score is largest.”** `arg max` returns the winning argument/index, not the maximum score. If the scores are `(0.2, 1.7, -0.4)`, the winning index is 1, so the predicted label is Class 1.
+
+### Deriving the boundary equation
+
+Two class-specific score functions tie where `z_i = z_j`, read **“z sub i equals z sub j.”** Substitute their score definitions:
+
+`w_i^T x + b_i = w_j^T x + b_j`.
+
+Move the right-hand terms to the left:
+
+`(w_i - w_j)^T x + (b_i - b_j) = 0`.
+
+Read this as **“w sub i minus w sub j, transpose, times x, plus b sub i minus b sub j, equals zero.”** It describes where the two classifiers are equally scored. With two features, the equation describes a line. For example, if `z_0=2*x_1+x_2-1` and `z_1=x_1+2*x_2`, equality reduces to `x_1-x_2-1=0`. At `(x_1,x_2)=(2,1)`, both scores equal 4, so the point is on their pairwise tie line. The final three-class decision boundary consists of the parts of pairwise ties that separate the regions where each class actually wins.
+
+### Code mapping and results
+
+`OneVsRestClassifier(LogisticRegression(...))` creates the three binary models. `.fit(X_train, y_train)` learns from only clean training examples. `.predict(X_test)` chooses labels on held-out features, and `accuracy_score(y_test, predictions)` compares those predictions with their clean labels. `estimators_` contains one fitted binary estimator per class; `coef_[0]` supplies its two weights and `intercept_[0]` its bias. The notebook calculates `w_k^T x+b_k` for an example and checks it against the wrapper's scores, connecting the math to actual model parameters.
+
+The course's seeded run reports baseline test accuracy `0.9600`. This is a result for this toy distribution and split, not a general performance guarantee. The region plot shows which model wins at each location on a grid. It is a visualization of predictions, not a second training step.
+
+### COAE quick recall
+
+- With `K` classes, OvR trains `K` binary models, each one class vs all the others.
+- The prediction is the class associated with the largest score.
+- `arg max` returns the class index/argument that maximizes a score.
+- A pairwise boundary is where two class scores are equal; subtracting them produces a linear equation.
+- `coef_` corresponds to weights; `intercept_` corresponds to bias.
+- Compare attacks against the clean baseline on unchanged held-out data.
+- The baseline describes initial behavior; it is neither the poison nor proof of robustness.
+
+**Exam check:** For class scores `(0.2, 1.7, -0.4)`, state that `arg max` chooses class index 1. If asked for the boundary of classes `i` and `j`, set `z_i=z_j` and rearrange to `(w_i-w_j)^T x+(b_i-b_j)=0`. In the two-feature plot this is a line.
+
+Notebook: [Module_302_Clean_Label_Attack_Study.ipynb](Module_302_Clean_Label_Attack_Study.ipynb), extended through Section 10 with a clean three-class OvR baseline, inspectable weights/biases, accuracy measurement, and decision-region visualization.
