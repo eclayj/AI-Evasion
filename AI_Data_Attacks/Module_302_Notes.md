@@ -348,3 +348,44 @@ HTB validates that the percentage is between zero and one, that `target_class` a
 **Exam check:** if a question says “flip 40% of class 1 to class 0,” first count only the class-1 training examples, multiply that count by 0.40, and convert to a whole number. Do not multiply the rate by the entire dataset unless the question explicitly defines it that way. If it asks how the attack differs from random label flipping, emphasize its class-specific selection and chosen misclassification objective.
 
 Notebook: [Module_302_Label_Flipping_Study.ipynb](Module_302_Label_Flipping_Study.ipynb), extended through Section 7 with a targeted label-flipping function, traceable selected indices, class-aware visualization, and model fit. Targeted impact evaluation is left for the later course section that introduces it.
+
+
+## Section 8 of 25 — Evaluating the Targeted Label Attack
+
+### What is being evaluated
+
+The targeted model was fitted on the original training feature rows paired with copied labels in which selected Class 1 labels were changed to Class 0. Evaluation now uses the clean held-out test features `X_test` and their unchanged correct labels `y_test`. This isolates the effect of poisoned training labels. If test labels were also altered, we would no longer have a trustworthy answer key.
+
+The section compares targeted-model accuracy with the earlier clean baseline, examines metrics per class, visualizes the boundary shift, and applies the model to a fresh synthetic batch. The fresh data uses similar centers with a larger spread and a new random seed. It demonstrates whether the pattern carries to unseen toy rows; it is not production evidence.
+
+### Metrics, symbols, and how to read them
+
+- `y_pred_targeted`, say **“why predicted targeted,”** is the vector of predicted class labels for the clean test examples.
+- Accuracy is `correct predictions / all test examples`. It reports the fraction of all rows predicted correctly. HTB's reference run goes from baseline accuracy `0.9933` to targeted accuracy `0.8100`.
+- For a selected positive class, **true positive (TP)** means actual class is that class and prediction agrees; **false negative (FN)** means actual class is that class but prediction is another class.
+- Recall is `TP / (TP + FN)`. Say it **“true positives divided by true positives plus false negatives.”** It starts with all actual target-class examples and asks what fraction were caught. HTB reports Class 1 recall `0.61`: roughly 61% recognized and 39% missed.
+- Precision is `TP / (TP + FP)`. Say it **“true positives divided by true positives plus false positives.”** It starts with all examples predicted as the class and asks what fraction truly belong there.
+- F1 is `2 × precision × recall / (precision + recall)`. Say **“two times precision times recall, divided by precision plus recall.”** It balances precision and recall. With precision `1.00` and recall `0.61`, F1 is about `0.76`.
+
+For a numerical check from the HTB confusion matrix, 90 of 147 actual Class 1 examples are predicted as Class 1 and 57 are predicted as Class 0. Therefore Class 1 recall is `90 / (90 + 57) = 90 / 147 ≈ 0.612`. Those 57 are false negatives for Class 1. The matrix's rows are actual classes and columns are predicted classes, so the lower-left cell means actual 1, predicted 0.
+
+### Reading the plots and fresh-data check
+
+The boundary plot overlays the clean baseline with the targeted-poisoned model using the same feature grid. A line can move while the aggregate test accuracy remains unchanged if no test example crosses it. Conversely, a metric summarizes outcomes but does not show where errors occur spatially. The plot and metrics answer related but distinct questions.
+
+The fresh synthetic batch uses a new random seed and `cluster_std=1.50`. Let `n_target_missed` mean actual target-class examples predicted as a different class, and `n_target` mean all actual target-class examples in that batch. The targeted miss rate is `n_target_missed / n_target`, read **“number of target examples missed divided by all actual target examples.”** It equals one minus target-class recall for that batch. Because the data is synthetic and generated from a known distribution, this is a controlled teaching demonstration, not evidence about how a real model or population would behave.
+
+### COAE quick recall
+
+- Keep test features and labels clean; the poisoning happens in training.
+- Overall accuracy can conceal harm concentrated in a target class.
+- Recall is the key “of all actual target examples, how many did we catch?” measure; inspect false negatives for an attack that turns target positives into negatives.
+- Precision and recall have different denominators: predicted class vs actual class.
+- Read confusion-matrix axes before interpreting cells.
+- A shifted boundary explains changed geometry; a metric counts changed outcomes.
+- A fresh held-out sample can demonstrate generalization, but it must be representative for real-world claims.
+- Poison percentage measures corrupted training labels, not attack success or accuracy loss.
+
+**Exam check:** For a target class with 147 actual examples, if 90 are correctly predicted and 57 are labeled as the other class, recall is `90/147 ≈ 61.2%`. The 57 are false negatives for the target class. State the matrix orientation and the clean evaluation setup when explaining the result.
+
+Notebook: [Module_302_Label_Flipping_Study.ipynb](Module_302_Label_Flipping_Study.ipynb), extended through Section 8 with clean held-out classification metrics, a confusion matrix, a shared-grid boundary comparison, and an explicitly synthetic fresh-data check.
