@@ -305,3 +305,28 @@ Manipulating training data may have ethical, legal, and safety consequences beyo
 ### Math, code, and notebook decision
 
 This lesson has no new equation or code exercise, so no notebook is needed. The Section 3 notebook remains the concrete local example of how a few changed training rows can influence a model. The current lesson broadens the data threat model to data quality, backdoors, federated updates, privacy, providers, storage, and insider access. Defensive measures such as provenance records, access controls, validation, encryption, and monitoring are production safeguards, not separate attack steps taught by this section.
+
+## Section 9 of 11 — Attacking Application Components
+
+The **application component** is the product that integrates a model with users, databases, web pages, APIs, and other services. It often has the most in common with traditional application security. Adding an AI model does not remove the ordinary weaknesses of the application around it; it can create new data flows and additional places where validation and authorization must be applied.
+
+### Risks
+
+- **Unauthorized access:** a weakness in access control can expose sensitive data or administrative functions, potentially affecting confidentiality, integrity, and availability.
+- **Injection:** unsafe handling of input can let user-controlled content alter how a backend database or system process behaves. SQL injection and command injection are traditional examples. In an AI integration, the application must also avoid blindly passing generated text into a database, browser, or command interface; this connects to Section 4's improper-output-handling risk.
+- **Insecure authentication:** weak passwords, missing multi-factor authentication (MFA), or unsafe session-token handling can let an attacker impersonate a user or bypass access controls.
+- **Information disclosure:** insecure coding, inadequate access controls, misconfigured databases, careless error handling, verbose logs, or insecure transmission can expose sensitive information. Leaked personal or business data can cause privacy, financial, and reputational harm.
+
+### TTPs described by HTB
+
+HTB discusses probing weak validation through application inputs such as forms, URLs, and query parameters. Unexpected types, unusually long strings, or encoded characters may reveal validation gaps. The defensive lesson is to validate data according to an explicit expected format and apply the appropriate encoding at each boundary; a single generic “sanitize” step does not make data safe for every use.
+
+**Cross-site scripting (XSS)** occurs when attacker-controlled content is displayed in a page and interpreted as executable browser script. Depending on the context, impact may include manipulating the page, redirecting a user, or exposing session-related information. Proper context-sensitive output encoding and safe content handling are key defenses.
+
+The page also includes **social engineering**: manipulating people into revealing information or taking an unsafe action. It names phishing, **pretexting** (inventing a believable scenario to gain trust), and **baiting** (luring someone with an offer or device). These techniques may be used to gain credentials or access without exploiting a model. The notes retain the concepts without turning them into operational deception instructions.
+
+### Defensive connection and notebook decision
+
+Practical application safeguards include server-side authorization checks, strong authentication and session handling, parameterized database queries, input validation, context-appropriate output encoding, careful error and log handling, and protected data transmission. LLM outputs must be treated as untrusted input whenever another application component processes them. These controls protect the integration layer; they do not replace testing the model or data components.
+
+No formula or code exercise appears in this lesson, so no notebook change is appropriate. The notes connect the traditional application risks to the LLM-specific integration risks from Section 4.
