@@ -179,3 +179,39 @@ The `?` in a URL starts the query string. A value such as `c=...` is a query par
 For an exam, recognize **private context → indirect prompt injection → generated remote image/link → automatic browser or preview fetch → data in request logs**. Name the exfiltration channel and recommend controls on context access and remote-resource loading. This continues the Module 297 distinction: prompt injection influences the model, while insecure output handling turns its response into a browser/network side effect.
 
 Notebook: [Module_307_Markdown_Exfiltration_Concepts.ipynb](Output_Attacks/Module_307_Markdown_Exfiltration_Concepts.ipynb). It shows URL encoding with fictional text only, prints a non-routable example URL, and makes no request or rendered image fetch.
+
+## Section 7 of 14 — LLM Hallucinations
+
+### What a hallucination is
+
+A hallucination is generated content that is fabricated, inaccurate, nonsensical, or inconsistent, even when it sounds confident. HTB distinguishes three forms:
+
+- **Fact-conflicting:** contradicts facts about the world (the lesson's example is incorrectly counting letters).
+- **Input-conflicting:** contradicts information in the current prompt (for example, the prompt says a shirt is red but the answer says blue).
+- **Context-conflicting:** contradicts earlier generated content or another statement in the same response (for example, switching from “shirt” to “hat”).
+
+There is no single cause. Incomplete, noisy, or biased training data can contribute, as can confusing, ambiguous, or contradictory prompts. Hallucinations are inherent enough that they cannot be eliminated entirely; application design should reduce their likelihood and check important outputs before relying on them.
+
+### Confidence signals are not proof
+
+The section describes three ways to estimate whether a response may be unreliable:
+
+- **Logit-based:** logits (say “LOH-jits”) are raw scores for candidate next tokens. They can be unavailable for closed models, and a high score reflects what wording the model favors—not whether the claim is true.
+- **Verbalized:** ask the model to report its own confidence. A reply such as “90% confident” is a self-report, not automatically a calibrated 90% chance of correctness. Models can be poor judges of their own uncertainty.
+- **Consistency-based:** prompt multiple times and compare answers. Disagreement can signal uncertainty, but repeated agreement can reproduce the same error because the runs share a model and its biases.
+
+Multiple-agent debate can add perspectives but is not a guarantee either; agents may share assumptions or sources. Retrieval from external knowledge can ground a response in relevant material, but the source and the response still need checking. For high-impact decisions, use deterministic validation rules and human review.
+
+### Security impact and connections
+
+Hallucinations can spread misinformation or bias, cause financial or legal harm when users rely on fabricated policy claims, expose sensitive training data, or introduce security bugs when generated code is trusted. A fabricated package name is especially risky: an attacker may publish a malicious package under that name, and a user who installs it can run attacker-controlled code. This is a supply-chain risk, not merely a harmless install error.
+
+This connects to earlier sections: hallucinated SQL, shell commands, or tool arguments can become dangerous when the application executes them without validation. The output-handling problem is the unsafe use of the response; hallucination describes the response being unreliable in the first place.
+
+### COAE exam cue
+
+Do not equate fluent or confident wording with verified truth. Recognize fact-conflicting, input-conflicting, and context-conflicting hallucinations. Treat logits, self-reported confidence, repeated answers, and agent consensus as imperfect signals. Verify claims, sources, dependencies, and code independently before consequential use.
+
+### Notebook decision
+
+This is a conceptual review section and introduces no safe code example that needs a notebook. The definitions and exam cues are captured here; implementation-specific mitigations are covered alongside the earlier SQL, command, tool, and exfiltration examples.
