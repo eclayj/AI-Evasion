@@ -276,3 +276,21 @@ The general red-team question is whether content with the same harmful intent ca
 ### COAE exam cue and notebook decision
 
 Distinguish **harmful content generation** from **evasion of a harmful-content detector**. For a threshold question, identify the score, the cutoff, and which side triggers the flag; remember that the threshold trades off false positives and false negatives. The evasion goal is to retain meaning while changing form enough to cross the classifier's decision boundary. This section is conceptual and intentionally does not need a notebook containing harmful content or evasion payloads.
+
+## Section 11 of 14 — Mitigating Abuse Attacks
+
+### Defense in layers
+
+HTB groups mitigation into model safeguards, monitoring, and public awareness:
+
+- **Before deployment:** adversarial training exposes the model to challenging prompts during training to improve resilience; adversarial testing probes a model to find weaknesses before release. Bias detection can help identify problematic patterns in training data.
+- **At deployment:** context-aware guardrails and content filtering/moderation can block harmful requests or outputs. These are runtime layers and can still miss cases, so do not make them the only control.
+- **Monitoring and verification:** AI-generated-text detection estimates likely authorship; misinformation detection and fact-checking evaluate whether claims are supported by reliable sources. Authorship and truth are different properties.
+- **Watermarking:** a generator can slightly adjust token-selection probabilities in a detectable pattern. Later statistical analysis may provide evidence about a text's origin. It aims to leave a subtle trace, not to verify a claim's truth or classify its safety.
+- **Policies and public literacy:** legal/industry rules, media literacy, awareness campaigns, and critical thinking can reduce the spread and impact of harmful content.
+
+### Practical limits and COAE exam cue
+
+Layer controls across the lifecycle: **training/testing → runtime safeguards → monitoring/fact-checking → policy and public awareness**. No single layer is sufficient. As a practical caution beyond the lesson's overview, AI-text detectors can make false-positive and false-negative errors, and watermark evidence may be unavailable or weakened by editing/paraphrasing. Treat these signals as evidence to investigate, not definitive proof. Verify factual claims against trustworthy sources and keep human review for consequential decisions.
+
+This section is conceptual and does not introduce an implementation that benefits from a notebook. The study-guide entry captures HTB's defense categories and the limitations important for certification scenarios.
