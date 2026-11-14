@@ -330,3 +330,27 @@ The page also includes **social engineering**: manipulating people into revealin
 Practical application safeguards include server-side authorization checks, strong authentication and session handling, parameterized database queries, input validation, context-appropriate output encoding, careful error and log handling, and protected data transmission. LLM outputs must be treated as untrusted input whenever another application component processes them. These controls protect the integration layer; they do not replace testing the model or data components.
 
 No formula or code exercise appears in this lesson, so no notebook change is appropriate. The notes connect the traditional application risks to the LLM-specific integration risks from Section 4.
+
+## Section 10 of 11 — Attacking System Components
+
+The **system component** includes the hardware, operating system, configuration, network, and deployment details that support the ML service. A model can be developed securely and still be exposed through a weak server or deployment configuration.
+
+### Misconfiguration and insecure deployment
+
+HTB lists common system misconfigurations such as open network ports, weak access-control lists (ACLs), exposed administrative interfaces, and default credentials. These can expose the underlying infrastructure or allow unauthorized access. The page also warns that a model deployed without authentication, encryption, or input validation is exposed to the risks discussed in earlier sections.
+
+The broader security lesson is to use secure baseline configurations: close unnecessary services, restrict management interfaces to authorized networks, use least-privilege access controls, remove default credentials, keep software updated, and protect model files and communications. These are system safeguards that support—not replace—model and application protections.
+
+### Resource exhaustion, DoS, and DDoS
+
+A **denial-of-service (DoS)** attack attempts to make a service unavailable. A **distributed denial-of-service (DDoS)** uses many sources to create that disruption. ML services can be affected by ordinary request floods as well as requests that consume unusually large amounts of computation. Resources at risk include CPU, RAM, network bandwidth, and disk space. Automated scaling may preserve service temporarily but can substantially increase cost. A resource-exhaustion incident can also distract responders while another issue is being investigated.
+
+Useful deployment controls include request and token-size limits, rate limits, quotas, monitoring of latency and resource use, alerting, and capacity planning. These reduce the chance that excessive inference requests consume all available capacity or trigger unexpected cloud spend.
+
+### TTPs named in the lesson
+
+HTB discusses using vulnerability scanners to identify outdated system components, attempts involving default or weak credentials, password spraying, brute-force attempts, and testing server, firewall, and access-control configuration. **Password spraying** means trying a small number of common passwords across many accounts rather than many guesses against only one account; the lesson highlights its risk when administrative services are publicly reachable. These are concepts for authorized assessment scope, not steps to run against systems outside that scope.
+
+### Module conclusion and notebook decision
+
+HTB concludes that Module 294 provides a high-level overview of attack vectors across ML system components. Later AI Red Teamer path modules will examine individual attacks in more detail. This section has no formula or code exercise, so no notebook is needed. The system-focused notes complete the component map begun in Section 6 and connect infrastructure misconfiguration to model availability and deployment security.
