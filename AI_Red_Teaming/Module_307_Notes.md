@@ -333,6 +333,16 @@ The **Digital Services Act (DSA)** sets obligations for digital services, includ
 
 The **EU AI Act** is a separate, AI-specific risk-based framework. HTB introduces prohibited, high-risk, limited-risk, and minimal-risk categories. An important real-world nuance is that classification depends on an AI system's intended purpose and use, not simply the fact that it is an LLM. For example, an LLM used in a high-risk context may have different obligations from a general chatbot. The Commission's current materials list transparency duties for certain AI interactions and generated content; schedules differ by obligation and are subject to legislative updates.
 
+### Current-reference checkpoint (verified 2026-11-13)
+
+These dates are a time-sensitive supplement to HTB's overview, not a replacement for the course's high-level distinctions:
+
+- The TAKE IT DOWN Act was signed on May 19, 2025. Its criminal prohibition took effect immediately; covered platforms' one-year deadline to establish the notice-and-removal process was May 19, 2026.
+- The EU AI Act's general application and Article 50 transparency obligations began on August 2, 2026. The current Commission timeline sets certain high-risk use-case obligations for December 2, 2027, and high-risk AI embedded in regulated products for August 2, 2028.
+- NIST AI RMF remains voluntary guidance; NIST says AI RMF 1.0 is being revised.
+
+For an exam, learn the distinction among voluntary guidance, platform law, and AI-specific risk regulation. For real compliance decisions, check the linked official sources again because legislation, guidance, and transition dates can change.
+
 ### COAE exam cue, current-reference caveat, and notebook decision
 
 Distinguish **voluntary guidance** (NIST AI RMF) from **binding legal obligations** (for example, the TAKE IT DOWN Act, DSA, and AI Act). Know the broad contrast HTB teaches: U.S. protections and targeted laws versus the EU's platform and risk-based AI frameworks. Do not overgeneralize that all misinformation is illegal, that the DSA defines illegality, or that every LLM automatically has the same EU risk category. Because this area changes, use the official materials below for current scope and dates when applying the concepts outside the course. This is a conceptual section with no code, so no notebook is needed.
