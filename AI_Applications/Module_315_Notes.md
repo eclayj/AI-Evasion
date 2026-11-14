@@ -251,3 +251,40 @@ When a scenario describes sensitive AI inputs being logged or exposed, separate 
 **Production perspective:** use explicit assessment scope and synthetic or redacted records; avoid retrieving real medical or payment data merely to prove exposure. A production review can often establish the problem through access rules, configuration, schemas, and carefully limited evidence.
 
 **Notebook decision:** No new Python notebook is needed. This is a web-application discovery and data-governance lab; a Python implementation would add little learning value. The existing model-extraction notebook does not need changes for this section.
+
+## Section 7 — Model Deployment Tampering
+
+### Ways a deployed model can be changed
+
+**Direct model tampering** is unauthorized access to the deployed model artifact followed by changes to its parameters, configuration, or files. For a neural network, **weights** and **biases** are learned numeric values that influence its output. A small or targeted alteration can change decisions while leaving most normal behavior intact.
+
+**Indirect model tampering** changes an upstream input to the model-building process, such as its training data. **Data poisoning** means deliberately inserting or modifying examples so that training produces attacker-desired behavior. A **backdoor** is a hidden behavior that activates for a particular trigger but remains hard to notice on ordinary inputs. For example, a classifier could behave normally except when an otherwise irrelevant trigger appears.
+
+The distinction to remember is where the change enters: direct tampering changes the deployed model or its deployment files; indirect tampering changes training data or another upstream pipeline input. Both can harm model integrity and produce similar downstream behavior.
+
+### ShellTorch: how separate weaknesses compose
+
+HTB presents **ShellTorch** as an example of a model-serving system compromised through a chain of infrastructure weaknesses. TorchServe hosts models and exposes management functions. The lesson's chain is:
+
+1. A management API is reachable without the expected authentication or network restrictions.
+2. A model-loading feature accepts a URL and causes the server to fetch remote content. This is **SSRF**, pronounced **“ess-ess-are-eff”**: *Server-Side Request Forgery*. The attacker influences a request made from the server's network position.
+3. The fetched content is processed by a vulnerable YAML deserialization path. **Deserialization** (say **“dee-sir-ee-uh-luh-zay-shun”**) rebuilds program objects from structured data. Unsafe object reconstruction can trigger behavior while the data is being loaded.
+4. The resulting object chain reaches code execution on the server. **RCE**, pronounced **“R-C-E,”** means *Remote Code Execution*.
+
+This chain is valuable for security reasoning because no single label describes the whole failure. Weak access controls expose a powerful API; SSRF lets the server retrieve attacker-controlled content; unsafe deserialization processes that content dangerously; and the final impact is RCE. In a COAE scenario, state both each link and the end impact instead of stopping at “the model was hacked.”
+
+### Defenses across the deployment lifecycle
+
+- Restrict management interfaces to trusted networks and authenticated administrators; do not expose them publicly by default.
+- Validate and constrain server-side URL fetching. Use allowlists where possible, block internal and metadata destinations, and apply network egress controls.
+- Avoid unsafe deserialization of untrusted input. Prefer simple data formats and parsers that do not instantiate arbitrary program objects.
+- Patch model servers, YAML libraries, container runtimes, and other dependencies. Track versions and respond to security advisories.
+- Run serving processes with least privilege, isolate them, and limit their filesystem and network access so a service compromise has less reach.
+- Protect model and training-data storage with access controls, versioning, integrity verification, and audit trails. Use controlled, reviewable build and deployment pipelines and verify model artifacts before promotion.
+- Test model behavior and pipeline inputs, including targeted trigger cases, while recognizing that ordinary accuracy tests may not reveal a carefully hidden backdoor.
+
+**HTB's lesson:** the lab demonstrates that weaknesses in deployment infrastructure can combine to compromise a model-serving server and put models and data at risk.
+
+**Production perspective:** the course's exploit chain is specific to its authorized lab setup and vulnerable software versions. Do not run exploit payloads against real model servers without explicit scope. A production assessment can begin with version/configuration review, access-control checks, dependency scanning, and safe verification of network boundaries.
+
+**Notebook decision:** No new Python notebook is needed. The section's hands-on chain uses SSH tunneling, a vulnerable model-serving API, unsafe YAML deserialization, Java payload construction, and remote code execution. Packaging those steps into a reusable notebook would make an environment-specific exploit too easy to aim at the wrong system. The existing Module 315 notebook remains focused on safe model-extraction concepts.
