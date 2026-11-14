@@ -132,3 +132,27 @@ Do not execute free-form model-generated shell. Map the request to a fixed serve
 Sections 2–4 apply Section 1's untrusted-output rule at different boundaries: browser/HTML, database/SQL, and operating-system shell. Prompt injection may influence what a model produces; code injection is the application executing that output in a powerful interpreter. On an exam, look for model output passed to a shell or command runner and identify the impact as server-side execution. Recommend fixed operations, strict typed validation, argument arrays/no shell, least privilege, and isolation.
 
 Notebook: [Module_307_Code_Injection_Safety_Worksheet.ipynb](Output_Attacks/Module_307_Code_Injection_Safety_Worksheet.ipynb). It demonstrates input validation and safe command construction only; it does not execute shell commands or contact a host.
+
+## Section 5 of 14 — Function Calling
+
+### What a tool/function call is
+
+Function calling lets an LLM propose a call to a predefined application function, together with arguments. For example, `get_order_status(1337)` is read aloud as “get order status, called with thirteen thirty-seven.” The model does not directly execute that function. The application receives the proposed name and arguments, validates and authorizes the request, calls its own code, and may return the result to the model. Agents use this pattern to interact with external tools and APIs, which makes the permission boundary especially important.
+
+HTB identifies three related but distinct risks:
+
+1. **Insecure implementation:** the application sends model text to `eval` or `exec`. `eval` evaluates an expression; `exec` executes statements. This can turn a small intended feature into arbitrary Python execution. Do not treat generated code as a safe function call.
+2. **Excessive agency:** the model can access tools or capabilities that exceed the user's authorization or the task's need. A prompt that says “I am an administrator” is only text. Authentication and authorization must come from the application using the real logged-in identity, not the model's claim.
+3. **Vulnerable functions:** a permitted tool may itself contain a vulnerability. HTB's package-search function has an SQL injection weakness; function calling is the route to that function, while the underlying database flaw remains the same kind covered in Section 3.
+
+### Safer function-calling design
+
+Use a fixed server-side registry mapping approved names to specific functions; reject unknown names and unexpected arguments. Validate argument types, ranges, and business rules. Check each call against the authenticated user's permissions before performing it. Each function must still use safe downstream practices, such as parameterized SQL or safe process handling. For consequential actions, add confirmation, audit logs, rate limits, and appropriate rollback/idempotency controls. These operational safeguards extend HTB's main lesson: a structured tool call is not automatically safe, and the model must not be the authority granting itself access.
+
+### Connections and COAE exam cue
+
+Prompt injection (Module 297) can influence which tool the model proposes. Function calling provides the application path that may carry out the proposal. Insecure output handling is the application's unsafe treatment of generated content; excessive agency concerns the tools and authority exposed to the model; a vulnerable function concerns flaws inside the tool implementation. These can be chained, but they are not interchangeable labels.
+
+For a scenario, ask: **Can model text become code via `eval`/`exec`? Does the tool set grant excessive authority? Is a called function itself vulnerable?** Then recommend a fixed allowlist/dispatcher, strict argument validation, real server-side authorization, least privilege, and secure implementation of every tool.
+
+Notebook: [Module_307_Function_Calling_Safety_Worksheet.ipynb](Output_Attacks/Module_307_Function_Calling_Safety_Worksheet.ipynb). It demonstrates a local allowlisted dispatcher and per-user authorization using fictional data. It does not call external tools, evaluate generated code, or contact a service.
