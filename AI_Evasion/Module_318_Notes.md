@@ -626,3 +626,56 @@ The course page's example outputs (for example, “really” at `0.121` impact o
 - Access probability columns by their class label (`spam_index`), not an assumed column position. In this notebook the local model is still only a simulator for a black-box interface.
 - The 85–95% performance comparison and specific word impacts are not universal. Recompute them on the actual model and a disjoint evaluation sample.
 - Results persistence should serialize plain Python numbers and words. Store query totals, sample denominators, thresholds, and configuration with the rates so results remain interpretable.
+
+## Section 11 of 12 — GoodWords Challenge
+
+### What the challenge asks
+
+The challenge gives a fixed high-confidence spam message and a frozen Multinomial Naive Bayes service. We may only **append** legitimate-looking letter tokens, stay within the service's `max_added_words` limit, and make the returned label become ham. The challenge is black-box: `/predict` exposes a label and spam probability, but not the model's parameters. A valid `/submit` returns the flag.
+
+The API sequence is:
+
+- `GET /health`: check that the instance responds.
+- `GET /challenge`: retrieve the fixed base message, target label, and word budget.
+- `POST /predict`: ask for the score of an original or augmented message.
+- `POST /submit`: send the final append-only text and receive a flag if validation succeeds.
+
+The base message is selected by the server and validated to be strongly spam under its frozen model. Candidate vocabulary from the earlier lesson is only a starting point; the challenge model may use different training data or tokenization, so measure effects against this service.
+
+### Finite-difference ranking
+
+For base message `x` and candidate word `w`, the notebook measures:
+
+\[
+\Delta p(w)=p_{\text{spam}}(x)-p_{\text{spam}}(x\mathbin{+}\text{space}+w).
+\]
+
+Read it aloud as **“delta p of w equals spam probability for x minus spam probability for x followed by a space and w.”** `p_spam(x)` is the returned spam score for the unmodified message. A positive `Δp(w)` means that one appended word lowered the score; for example, `0.91-0.76=0.15`, a 15 percentage-point decrease. This is the finite-difference reward from Section 6 measured directly through `/predict`, with each request consuming time and potentially service query allowance.
+
+Ranking single-word effects is a useful first filter, but effects depend on context. After adding one word, the next word can have a different marginal effect than it had by itself. The challenge scaffold therefore checks the label after each growing prefix and stops as soon as it becomes ham. The endpoint's label is the authoritative success signal; do not assume a local classifier's class ordering or threshold is identical.
+
+### Append-only validation and token budget
+
+The submission must begin with the exact base message followed by a space and added tokens. Count the **additional tokens** using the challenge's letter-only tokenizer; punctuation inside an added item may split it into multiple tokens. The notebook restricts added candidates to `[A-Za-z]+`, joins them with single spaces, verifies that the original base is unchanged, and recounts the suffix before submission. These checks prevent a visually small suffix from exceeding the actual token budget.
+
+For a budget `B`, never append more than `B` validated tokens. If the API says `B=25`, a candidate sequence of 26 words is invalid even if the classifier already predicts ham at word 20; stop at the first successful prefix and submit that prefix.
+
+### Security concepts and practical handling
+
+- **Oracle/query interface:** the service answers chosen inputs without revealing internal parameters. It is a black-box classifier from the attacker's perspective.
+- **Frozen model:** one active challenge instance returns scores from a fixed model. Starting a fresh instance may change its target URL or state; get the current constraints again.
+- **Rate limiting and network reachability:** the target may only be reachable through the active HTB instance/VPN. Use timeouts and HTTP status checks; do not treat a connection failure as a classifier result.
+- **Flag handling:** `/submit` should only receive a final candidate that passed local append-only/token-budget validation and whose latest prediction is ham. The response flag is the challenge artifact; keep it out of the reusable study notes and notebooks.
+
+### COAE quick recall
+
+- The attack is black-box and query-based: compare `/predict` outputs rather than inspect model internals.
+- `Δp(w)=p_spam(x)-p_spam(x+w)` is the single-word finite-difference reward. Positive means a lower spam score, not automatically a successful label change.
+- Append-only means the original base text stays byte-for-byte intact; add a separator and legal tokens after it.
+- Count tokens with the challenge's letter-only rule, not whitespace items or characters. Respect the server-provided maximum.
+- Re-score the growing prefix and stop when the service reports the target label. Word impact is context-dependent, so a rank is a heuristic.
+- Keep `BASE_URL` configurable for the active target. The challenge notebook is a client scaffold; it contains no persistent target IP or flag.
+
+### What the live run demonstrated
+
+The spawned service returned a baseline spam probability of about `0.9999999983`. Individual candidate words changed that score only by tiny amounts; many scores displayed as `1.0` at four decimal places. Yet after 14 appended words, the service returned ham with spam probability about `0.2041`, below the 25-token budget. The notebook used 55 `/predict` requests: one baseline, 40 single-word probes, and 14 checks of the growing prefix. This is a useful example of probability saturation and context dependence: single-word rankings were weak clues, while the cumulative sequence produced a clear class change. The target address and flag are intentionally omitted from this reusable study guide.
