@@ -199,7 +199,7 @@ Say it: **“log probability of class C plus the sum from i equals one to n of l
 
 The HTB page cleans cautiously so candidate signals survive: word case is normalized, Unicode and whitespace are standardized, while numbers, currency characters, and repeated punctuation can be retained. The section's custom token pattern explicitly recognizes words, currency, numbers, and repeated punctuation, and limits the vocabulary to 3,000 features. A character surviving text cleaning is not automatically a model feature; the vectorizer's token rules decide what becomes a column.
 
-The dataset is imbalanced: HTB reports 747 spam and 4,825 ham messages in the original 5,572-row dataset. After its cleaning and duplicate removal, the displayed run has 5,153 messages, 638 spam (12.4%) and 4,515 ham (87.6%). A stratified 80/20 split in that run gives 4,122 training rows and 1,031 held-out test rows. `stratify=y` aims to preserve class proportions in both splits; `random_state=42` makes that particular random split reproducible.
+The dataset is imbalanced: HTB reports 747 spam and 4,825 ham messages in the original 5,572-row dataset. After its cleaning and duplicate removal, the displayed run has 5,153 messages, 638 spam (12.4%) and 4,515 ham (87.6%). A stratified 80/20 split in that run gives 4,122 training rows and 1,031 held-out test rows. In our end-to-end notebook run, the current archive URL supplied 5,574 rows (4,827 ham and 747 spam), and the same cleaning retained 5,155; the split was 4,124 training and 1,031 test rows. This two-row difference may reflect an archive or parsing revision. Keep the page's values as HTB's example and record the notebook's measured values as local results, not as a guaranteed match. `stratify=y` aims to preserve class proportions in both splits; `random_state=42` makes that particular random split reproducible.
 
 The notebook deliberately learns the vocabulary only from the training messages and applies the learned vocabulary to test messages. Fitting preprocessing on all rows can leak information about the test set into training. The notebook also avoids saving or loading Python `pickle` files: untrusted pickle files can execute code when loaded, and keeping the fitted objects in memory is enough for a study baseline. These are practical safeguards around HTB's classroom flow, not changes to the GoodWords mathematics.
 
@@ -298,3 +298,56 @@ Plotting `num_words` against `evasion_rate` shows how the measured attack succes
 - Binary evasion occurs when the ham probability exceeds spam probability. The evasion rate is a percentage over the tested spam subset; the zero-word measurement is the baseline false-negative rate.
 - Treat plotted HTB percentages as experiment-specific. A sigmoid-like shape is a description of the observed trend, not a guaranteed curve.
 - The Module 318 [GoodWords baseline notebook](GoodWords_Baseline_Study.ipynb) now continues with this section's white-box ranking, message augmentation, evasion measurements, and plot. It deliberately uses dynamic class indices and the raw `test_text` values so the code matches the actual variable shapes.
+
+## Section 5 of 12 — Attack Analysis and Visualization
+
+### What this analysis adds
+
+Section 4 measured how many messages evade at each augmentation size. This section looks inside that aggregate result: it estimates each candidate word's individual effect and tracks spam probabilities for a few example messages as more words are appended. It reuses the model, vocabulary, top-word ranking, and held-out spam text already prepared in the Module 318 notebook.
+
+### Individual impact and average impact
+
+Let `f(x)` denote the model's spam probability for message `x`. After adding candidate word `w`, the course writes the impact as:
+
+\[
+I(w,x)=f(x)-f(x\oplus w).
+\]
+
+Say it aloud as **“impact of word w on message x equals f of x minus f of x combined with w.”** `x` is the original message; `w` is the candidate word; `\oplus` means the message with that word appended; and `f` returns a probability between 0 and 1. A positive result means the spam probability went down. For example, if it changes from `0.95` to `0.85`, then `I=0.95-0.85=0.10`.
+
+The average across `N` sampled messages is:
+
+\[
+\overline{I}(w)=\frac{100}{N}\sum_{i=1}^{N}\left[f(x_i)-f(x_i\oplus w)\right].
+\]
+
+Read the notation aloud as **“average impact of w equals one hundred divided by N, times the sum from i equals one to N of spam probability for x sub i minus spam probability for x sub i with w appended.”** `N` is the number of sampled spam messages; `x_i` is the message at sample index `i`; `\sum` means add each message's change. Multiplying by 100 expresses the average probability change in **percentage points**. A drop from 0.95 to 0.85 is 10 points; it is not a 10% relative reduction. The relative reduction would be `0.10/0.95 ≈ 10.5%`.
+
+HTB tests the top 20 ranked features on 50 spam messages and reports the leading word, `lor`, reducing spam probability by roughly 4 percentage points on average in its run. These values depend on the trained model and message sample.
+
+### Goodness is not the same as measured impact
+
+Section 4's goodness ratio compares estimated word probabilities in ham and spam across the training data. Individual impact measures a word's change to `f(x)` on the particular held-out messages. They answer different questions. A word can be strongly ham-associated in aggregate, yet lower spam probability only modestly when the original message contains many strong spam features.
+
+Impact also depends on the baseline message. Some words may affect a promotional message differently from a short phishing-like message. Averaging over examples reduces dependence on one message but does not make the estimate universal. The first 50 rows of a fixed split are a course convenience; sampling rules and split randomness can affect the result.
+
+### Probability-shift plot
+
+For several messages, the notebook measures `P(spam | message)` at addition counts such as `0, 5, 10, 20, 30`, then plots grouped bars against the decision boundary. Say `P(spam | message)` as **“probability of spam given the message.”** A bar below `0.5` is classified as ham in this binary setting. If a message starts below `0.5` at zero additions, it was already a false negative; added words did not cause that initial error.
+
+The plot is a per-message view of the same decision process as Section 4's aggregate evasion rate. It shows why a single average can hide variation: some samples cross after a few additions, some need more, and some are already misclassified before the attack.
+
+### Important math caveat: changes are not generally additive in probability space
+
+The Naive Bayes **log scores** add per-feature evidence, but the normalized class probabilities are nonlinear functions of those scores. Thus, if one word lowers spam probability by four points on average, ten words do not necessarily lower it by forty points. Word effects can overlap, probabilities are bounded between zero and one, and normalization changes how each shift appears. The correct approach is to measure combined words directly, as Section 4 did.
+
+HTB uses “percentage reduction” in prose, but its subtraction `prob_orig - prob_aug`, followed by multiplication by 100, is an absolute difference in **percentage points**. The notebook labels it that way for precision.
+
+### COAE quick recall
+
+- `I(w,x)=f(x)-f(x⊕w)` measures absolute change in spam probability after appending one word. Positive means lower spam probability.
+- Average impact is the mean of that change over `N` messages, multiplied by 100 to display percentage points.
+- Goodness ranks a word from training-set class probabilities; impact measures its effect on particular test messages. A high ratio does not imply a large effect.
+- A grouped probability plot shows differences between messages and marks the 0.5 binary decision boundary. Baseline false negatives must be separated from attack-induced flips.
+- Log evidence accumulates additively, but probability reductions do not generally add linearly. Measure word combinations rather than extrapolating from a single-word average.
+- The [GoodWords baseline notebook](GoodWords_Baseline_Study.ipynb) now includes single-word impact analysis, an impact bar chart, and per-message probability shifts while reusing the existing model and test-text series.
