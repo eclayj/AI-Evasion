@@ -96,3 +96,29 @@ For a scenario, ask **what is targeted, when does it happen, and what property i
 ### Notebook decision
 
 This is a conceptual threat-mapping section and supplies no runnable code. The table above serves as the review aid; adding a notebook would repeat it without creating a useful exercise.
+
+## Section 3 of 25 — Label Flipping
+
+### The attack in plain language
+
+Training examples have two parts: the **features** (the information describing an example) and the **label** (the answer the model is supposed to learn). Label flipping changes selected training labels while leaving their features alone. The lesson's examples are changing an image label from “cat” to “dog,” or an email label from “spam” to “not spam.” A model trained on contradictory examples may learn a weaker or misleading relationship between inputs and classes.
+
+For a binary class encoded as 0 or 1, a compact teaching expression is `y_i' = 1 - y_i`. Read it **“y sub i prime equals one minus y sub i.”** Here `y_i` is example i's original label, and `y_i'` (“y sub i prime”) is its changed label. If the original label is 0, then 1 − 0 = 1; if it is 1, then 1 − 1 = 0. This formula applies only to binary 0/1 labels. It is a teaching notation for the idea, not a formula shown by HTB in this section.
+
+The example vector is `x_i = (x_i1, x_i2)`. Say it **“x sub i equals the pair x sub i one, x sub i two.”** `i` identifies a row/example; `x_i1` and `x_i2` are that row's first and second features. The attack leaves the pair `x_i` unchanged and changes only `y_i`. This contrasts with a feature attack, which changes the input values themselves.
+
+### What HTB's code sets up
+
+The page imports NumPy, Matplotlib, scikit-learn, and Seaborn; sets plot colors; and fixes a random seed at 1337. It uses `make_blobs` to create 1,000 artificial two-feature examples around centers `(0, 5)` and `(5, 0)`, with a cluster standard deviation of 1.25. The two clusters stand in for negative and positive sentiment. They are not real reviews, and the feature dimensions are not words or a real sentiment representation.
+
+The data is split into 70% training examples and 30% test examples with a fixed random state. HTB's visible code then plots the clean training split so the starting class groups can be seen. The code shown in this subsection builds and visualizes the baseline data; it does not yet show the label-changing operation. The accompanying notebook reproduces those current-section building blocks and annotates them for study. It keeps the labels of the held-out test rows untouched, ready for a later comparison.
+
+### Why the held-out set matters
+
+If the goal is to see whether poisoned training labels harmed performance, evaluate on test examples whose labels remain correct. Flipping test labels too would corrupt the measuring stick: a model could appear better or worse simply because the answers used for scoring were changed. That clean-test rule is a sound evaluation practice connected to the exercise; the current HTB code shown here only creates the split and clean visualization.
+
+### COAE quick recall
+
+Given a suspicious training set, compare **features** with **labels**. If the inputs are unchanged but some answers are deliberately wrong, classify it as label flipping (a data-poisoning attack on integrity). A broad decrease in accuracy, precision, or recall is a possible consequence, not a guarantee: impact depends on which labels are changed, how many, the data distribution, and the model. Keep the test labels clean when measuring the impact.
+
+Notebook: [Module_302_Label_Flipping_Study.ipynb](Module_302_Label_Flipping_Study.ipynb). It currently covers the synthetic clean dataset, split, and plot from this section; it does not implement future attack steps.
