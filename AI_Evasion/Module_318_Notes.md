@@ -679,3 +679,65 @@ For a budget `B`, never append more than `B` validated tokens. If the API says `
 ### What the live run demonstrated
 
 The spawned service returned a baseline spam probability of about `0.9999999983`. Individual candidate words changed that score only by tiny amounts; many scores displayed as `1.0` at four decimal places. Yet after 14 appended words, the service returned ham with spam probability about `0.2041`, below the 25-token budget. The notebook used 55 `/predict` requests: one baseline, 40 single-word probes, and 14 checks of the growing prefix. This is a useful example of probability saturation and context dependence: single-word rankings were weak clues, while the cumulative sequence produced a clear class change. The target address and flag are intentionally omitted from this reusable study guide.
+
+## Section 12 of 12 — Skills Assessment: Feature Obfuscation Attack
+
+### Two phases, two access levels
+
+The assessment asks for 10 sentiment flips in each of two modes:
+
+1. **White box:** start with 10 positive reviews, inspect the downloaded classifier, and append at most 30 words per review to make each prediction negative.
+2. **Black box:** start with 10 negative reviews, hide the model internals, and use only `/predict` outputs to append at most 40 words per review until each prediction is positive.
+
+Both phases must pass before the assessment service returns its flag. An appended word is a model feature: it changes the evidence the classifier accumulates, even when it does not alter the original review's wording.
+
+### White-box word evidence
+
+For a token `w`, the white-box notebook ranks its class evidence with:
+
+\[
+L(w)=\log P(w\mid\text{negative})-\log P(w\mid\text{positive}).
+\]
+
+Read aloud: **“L of w equals log probability of w given negative minus log probability of w given positive.”** `P(w|negative)` is the classifier's learned probability for the token in negative reviews; the positive class is analogous. A positive `L(w)` means the token favors negative sentiment over positive sentiment in the model's learned likelihoods. For example, if the two probabilities are `0.02` and `0.001`, then `L=log(0.02/0.001)=log(20)≈3.00`, a strong negative direction.
+
+This ranking comes from the model's internal `feature_log_prob_` values, so it is appropriate only for Phase 1. The assessment vectorizer includes multi-word features; adding one word can also create new adjacent n-grams. Therefore the unigram likelihood ratio is a candidate-ranking shortcut, not a complete prediction. The downloaded classifier verifies every growing review locally, using its actual vectorizer and class labels.
+
+The model bundle is a pickle. Standard `pickle.load` can execute arbitrary globals embedded in the file. The assessment notebook permits only the specific NumPy and scikit-learn objects observed in the HTB bundle, loads it in memory, and rejects every other global. This narrows the code that can be reconstructed while keeping model analysis local.
+
+### Black-box word impact
+
+For a negative review `x` and word `w`, the black-box phase measures:
+
+\[
+\Delta p_{+}(w,x)=p_{+}(x\oplus w)-p_{+}(x).
+\]
+
+Read aloud: **“delta p positive of w and x equals positive probability after appending w minus positive probability before.”** `p_+(x)` is the API's returned positive-class probability. If it rises from `0.18` to `0.34`, the measured increase is `0.16`, or 16 percentage points. Ranking candidates by this change is like the earlier GoodWords reward but with the target class reversed. Only the API label confirms a flip; a high positive probability estimate is still different from the server's final success decision.
+
+### Budgets, evaluation, and accounting
+
+Each review has its own added-word cap: 30 in Phase 1 and 40 in Phase 2. The notebook verifies the exact original prefix and counts each appended single-token word before submission. The challenge's JSON submissions must contain all 10 original IDs and their corresponding augmented texts. It reports per-review feedback, allowing failed cases to be refined without changing successful ones.
+
+The black-box API's query allowance is distinct from the word cap. Each `/predict` request consumes a query; probing 30 candidates for 10 reviews is already 300 requests, before testing prefixes. The notebook uses a fixed, editable candidate list and sequential requests; reduce the probe list if the service imposes tighter query limits. It never uses Phase 1's model weights to rank Phase 2 black-box candidates.
+
+### COAE quick recall
+
+- White-box target evidence: `log P(w|negative)-log P(w|positive)`. Positive favors the target negative class; it is a feature-ranking heuristic and exact predictions should be verified.
+- Black-box target impact: `p_positive(augmented)-p_positive(original)`. Positive means the target-class score rose. Query outputs replace access to weights.
+- `arg max` means **“the argument that maximizes”**: the word whose measured target-class impact is largest.
+- The white-box download is a pickle. The notebook uses an allowlist-based unpickler and rejects unexpected globals instead of calling unrestricted `pickle.load`.
+- Per-review limits are 30 and 40 added words. Count only appended tokens and preserve each original text exactly.
+- Both phases require all 10 review IDs with the corresponding target sentiment. Check server feedback and final `/status`; one phase alone does not complete the assessment.
+- Keep white-box and black-box data paths separate. Do not reuse downloaded weights to select words in the black-box phase.
+
+
+### Assessment result and exam takeaways
+
+Both phases completed successfully: all 10 white-box reviews were flipped within the 30-word cap, and all 10 black-box reviews within the 40-word cap. The black-box run made 1,177 `/predict` requests during candidate probing and prefix checks. Per-review additions ranged from 3 to 39 words. These counts describe this live instance; they are not fixed requirements or guarantees for another instance.
+
+This run is a useful exam example of **score saturation**. Some original positive-class probabilities were extremely close to zero, so one-word probes could produce changes too small to notice or rank reliably. A sequence of individually measured words changed the model input cumulatively; the service label and final submission response determined whether the attack succeeded. Single-word impact is a local measurement, not a promise that the same word keeps the same impact after other words are appended.
+
+A query budget and an appended-word budget are separate constraints. A candidate probe asks the service a question but does not have to appear in the final text; an appended word changes the review but does not itself consume a query unless the API is called again to measure the result. Keep an explicit counter for each resource. The assessment API's `/status` confirmed 10 of 10 completions in each phase.
+
+For test review, explain why the two modes use different evidence: the white-box likelihood ratio reads model parameters, while the black-box finite difference measures API outputs. Both still need an authoritative final classifier label, strict preservation of the original review, and compliance with the per-review word cap.
