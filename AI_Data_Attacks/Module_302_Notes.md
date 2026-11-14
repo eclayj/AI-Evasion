@@ -389,3 +389,42 @@ The fresh synthetic batch uses a new random seed and `cluster_std=1.50`. Let `n_
 **Exam check:** For a target class with 147 actual examples, if 90 are correctly predicted and 57 are labeled as the other class, recall is `90/147 ≈ 61.2%`. The 57 are false negatives for the target class. State the matrix orientation and the clean evaluation setup when explaining the result.
 
 Notebook: [Module_302_Label_Flipping_Study.ipynb](Module_302_Label_Flipping_Study.ipynb), extended through Section 8 with clean held-out classification metrics, a confusion matrix, a shared-grid boundary comparison, and an explicitly synthetic fresh-data check.
+
+
+## Section 9 of 25 — Clean Label Attacks
+
+### The new attack lever
+
+Sections 5–8 changed labels during training and then measured the effect on clean evaluation data. Clean-label poisoning changes the **features** of selected training examples while leaving their assigned labels untouched. The goal is often targeted: arrange for a chosen inference-time input to be classified as a particular wrong class. “Clean” describes the labels, not the feature values.
+
+HTB's example is quality control with three classes: Class 0 = Major Defect, Class 1 = Acceptable, Class 2 = Minor Defect. The attacker wants a particular acceptable batch to be rejected as a major defect. They alter feature measurements such as length and weight for some Class 0 training examples so they move toward the Class 1 region, but retain the Class 0 label. During retraining, the model must fit those feature/label pairs, which may move the boundary until the chosen Class 1 target lies on the Class 0 side. The labels in the poison set may still look plausible, making this less obvious than directly flipping labels. The example explains intent; it is not a guarantee of success.
+
+### Notation and pronunciation
+
+HTB represents a part as `x_i = (x_i1, x_i2)`, read **“ex sub i equals the pair ex sub i one, ex sub i two.”** `i` identifies the row; its two entries are the measurements. `y_i`, **“why sub i,”** is the ground-truth class.
+
+For teaching, write the altered feature vector as `x_i′ = x_i + δ_i`, read **“ex sub i prime equals ex sub i plus delta sub i.”** The prime marks the modified version; `δ_i` (“delta sub i”) is the vector of feature changes. Equivalently, `δ_i = x_i′ − x_i`, **“delta sub i equals ex sub i prime minus ex sub i.”** In a clean-label attack, `y_i′ = y_i`, **“why sub i prime equals why sub i”**: the feature vector changes, but its label remains the same. These are conceptual teaching expressions; this subsection's code does not apply a perturbation.
+
+Numerical illustration: change the measurements `(10, 4)` to `(9.8, 4.2)`. Then `δ_i = (−0.2, 0.2)`. The feature values moved, but the label can remain Class 0. This two-coordinate difference is just a small vector of changes, not a new class label.
+
+### Synthetic dataset and scaling
+
+The section creates 1,500 two-feature examples using three cluster centers: `(0, 6)`, `(4, 3)`, `(8, 6)`, with `cluster_std=1.15` and seed 1337. A 30% holdout produces 1,050 training and 450 test rows; stratification preserves 350 training and 150 test examples per class.
+
+For feature `k`, standardization is `z_ik = (x_ik − μ_k) / σ_k`. Read **“z sub i k equals x sub i k minus mu sub k, divided by sigma sub k.”** `μ_k` is the feature's average and `σ_k` its standard deviation, computed from training examples. If `x_ik=10`, `μ_k=8`, and `σ_k=2`, the standardized value is 1, one standard deviation above average. Scaling makes measurement dimensions more comparable; it does not change class labels or poison the examples.
+
+HTB's shown code fits `StandardScaler` on all data before splitting, which allows the held-out feature distribution to influence preprocessing. The study notebook preserves the course objective but uses the leakage-safe sequence: split first, `fit_transform` the training features, then `transform` the test features with the same learned means and standard deviations. This is a best-practice adjustment, clearly called out in the notebook; it is not an additional attack step.
+
+### COAE quick recall
+
+- Label flipping edits labels; clean-label poisoning edits features while retaining labels.
+- Clean-label attacks often aim at chosen target inputs/classes and may appear more plausible in the training data.
+- `x_i′ = x_i + δ_i` expresses a feature edit; `y_i′ = y_i` expresses the unchanged label.
+- Standardization subtracts a per-feature mean and divides by its standard deviation.
+- Fit preprocessing from training data only to avoid test-data leakage; apply the learned transform to held-out data.
+- Stratified splitting maintains class proportions.
+- Section 9 creates and plots the clean dataset only. No attack has been implemented or evaluated yet.
+
+**Exam check:** For a training row with perturbed measurements but the same ground-truth class, name the method clean-label poisoning. For a row whose class itself changes, name label flipping. Clarify which data component changed before explaining the downstream model effect.
+
+Notebook: [Module_302_Clean_Label_Attack_Study.ipynb](Module_302_Clean_Label_Attack_Study.ipynb), created for Section 9 dataset setup, stratified splitting, leakage-safe standardization, and clean-data visualization. Attack code is intentionally deferred until HTB introduces it.
