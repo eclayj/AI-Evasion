@@ -187,3 +187,57 @@ The decision-boundary plot evaluates the model over a grid of feature coordinate
 ### Notebook update
 
 The study notebook now adds the clean logistic-regression fit, held-out accuracy, and decision-boundary visualization from this subsection. It still does not perform label flipping; that operation belongs to the later HTB section that introduces it.
+
+
+## Section 5 of 25 — The Label Flipping Attack
+
+### What changes, and what stays fixed?
+
+The attack targets the **training labels**. For each selected example, the feature vector (the information describing it) stays fixed while its answer is changed. In this sentiment exercise, the labels are binary: 0 means negative and 1 means positive. The attack is untargeted at the data-label level: every selected 0 becomes 1 and every selected 1 becomes 0; it does not select one desired destination class.
+
+HTB's function takes the original label array `y` and a `poison_percentage`. It computes `n_to_flip = int(n_samples * poison_percentage)`, chooses that many distinct indices, copies the label array, changes only the copied entries, and returns both the new labels and selected indices. For 700 training examples at 10%, the count is `int(700 × 0.10) = 70`. The integer conversion drops any fractional remainder; very small percentages can therefore select zero rows.
+
+### Pronounce the notation and read the loss change
+
+- `y_i` — say **“why sub i”**: the label supplied for example *i*.
+- `y_i′` — say **“why sub i prime”**: the changed version of that label. “Prime” here means modified, not exponentiation.
+- `x_i` — say **“ex sub i”**: example *i*'s feature vector. It stays fixed in this attack.
+- `p_i` — say **“pee sub i”**: the model's predicted probability of class 1 for example *i*.
+- `−log(p_i)` — say **“negative log of pee sub i.”** For a class-1 label, it is the example's binary cross-entropy loss.
+- `−log(1 − p_i)` — say **“negative log of one minus pee sub i.”** For a class-0 label, it is that example's loss.
+
+The one-example binary cross-entropy from Section 4 is
+
+`−[y_i log(p_i) + (1 − y_i) log(1 − p_i)]`.
+
+Read it aloud: **“negative, open bracket, y sub i times log of p sub i, plus one minus y sub i times log of one minus p sub i, close bracket.”** If `y_i=1`, the first part is selected and the loss is `−log(p_i)`. If `y_i=0`, the second part is selected and the loss is `−log(1−p_i)`. In each case, a high predicted probability for the supplied class means a smaller loss.
+
+Example: a review truly labeled 0 has predicted positive probability `p_i=0.1`. With the correct label, loss is `−log(1−0.1)=−log(0.9)≈0.105`. After changing its label to `y_i′=1`, loss for the same model prediction is `−log(0.1)≈2.303`. The poisoned label turns a confident, correct prediction into a large training error. During fitting, that error influences the learned weights and bias, potentially moving the decision boundary away from the one supported by the true data.
+
+The general binary-flip shorthand is `y_i′ = 1 − y_i`, read **“y sub i prime equals one minus y sub i.”** If the old label is 0, the new label is `1−0=1`; if it is 1, the new label is `1−1=0`. This shortcut is only appropriate for 0/1 labels. HTB's implementation spells the choice out with `np.where`, which is easier to read when first learning the operation.
+
+### How the code selects and changes rows
+
+A seeded random-number generator makes the selection repeatable: running the same data, fraction, and seed selects the same indices. `choice(..., replace=False)` samples without replacement, so no row gets counted twice. Copying `y` before assignment protects the clean training labels. `np.where(old_label == 0, 1, 0)` expresses the two cases explicitly. Returning `flipped_indices` provides traceability: we can verify the number of changed rows and mark them in the plot.
+
+The study notebook accepts `seed=SEED` as an optional function parameter, whereas the HTB page reads a global `SEED` inside the function. The resulting selection is the same, but the explicit parameter makes the dependency visible and the function easier to reuse. The notebook also checks that inputs are binary and that the requested percentage lies between 0 and 1; these are defensive guardrails around the lesson's core operation.
+
+### What the visualization tells us—and does not tell us
+
+The two-dimensional toy plot keeps every point at its original feature coordinates. The point's fill color reflects its current (possibly poisoned) label, and a red `X` marks a changed label. This makes it easy to see that the rows moved in **label space**, not feature space. It does not show training impact yet: Section 5 defines and visualizes the corruption, but does not fit a poisoned model or report its changed accuracy. That comparison belongs to later course material.
+
+The notebook uses a 10% poison rate only as an illustrative setting. It preserves the clean training labels and untouched test labels, creates a separate poisoned training-label copy, and prints the actual number selected. A clean test set is important because it gives a reliable reference for later measuring how training-time poisoning changed model behavior.
+
+### COAE quick recall
+
+- **Attack family:** data poisoning, because the attacker alters data consumed during training.
+- **Altered field:** labels (`y`); features (`X`) remain unchanged.
+- **Security property:** training-data integrity. The model is optimized against answers that have been deliberately falsified.
+- **Poison rate:** the fraction of training rows selected. It is not the same as measured attack impact.
+- **Reproducibility:** a fixed seed enables the same random sample to be selected again; sampling without replacement avoids duplicate indices.
+- **Evaluation hygiene:** keep the held-out test data and its labels clean.
+- **Do not overclaim:** label flipping can move a learned decision boundary or reduce performance, but the effect depends on data, model, selected rows, and poison rate. This section's plot demonstrates label corruption, not a measured performance drop.
+
+**Exam check:** if input features are unchanged but some training answers are deliberately reversed, identify label-flipping data poisoning. If asked why not alter test labels too, explain that the clean test labels are the trusted answer key for measuring the attack's effect.
+
+Notebook: [Module_302_Label_Flipping_Study.ipynb](Module_302_Label_Flipping_Study.ipynb), extended through Section 5 with an annotated flip function and a visualization. It does not train or evaluate the poisoned model ahead of the next HTB section.
