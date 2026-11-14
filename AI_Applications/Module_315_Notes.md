@@ -120,3 +120,52 @@ Rate limits and anomaly detection remain useful, but defenses should also constr
 For an exam scenario, identify the affected property (**availability**), resource being exhausted (compute, energy, latency budget, or paid inference), whether the attacker needs internal access or only query timing, and a layered mitigation that preserves ordinary use.
 
 **Notebook:** The existing model-extraction notebook is extended with an offline tokenizer comparison and calculations for the reported measurements. It does not send sponge inputs to any service or generate attack candidates.
+
+## Section 4 — Insecure Integrated Components
+
+### Follow the data and identity across components
+
+An AI application may combine a web front end, a database, an LLM, and plugins. A weakness in any connector can expose conversations or let an action occur under the wrong authority. Pixel Forge shows two routes to stored conversations: a normal web endpoint and a chatbot plugin that summarizes conversations. The web route may enforce ownership correctly while the plugin does not; security must be checked independently at every route.
+
+### Web application: IDOR and SQL injection
+
+The route `/query/5` uses an integer as a direct reference to one saved conversation. **IDOR** is pronounced **“eye-door”** and means *Insecure Direct Object Reference*: the application accepts a record ID without verifying that the signed-in user may access that record. HTB tests IDs from 1 to 100 with `ffuf`, a web fuzzer that substitutes candidate values into a URL. The example returns only ID 5 for the current user, suggesting that this route checks ownership. A status code alone is not enough; inspect which record and owner the response represents.
+
+The page then appends a quote to the ID and receives a SQL syntax error. This is a clue that the input may be inserted into a database query unsafely. A `UNION SELECT` payload combines rows from another query with the application's result. Its number of selected columns must match the original query. HTB's illustrative three-column payload is:
+
+```text
+/query/x' UNION SELECT 1,2,3 -- -
+```
+
+Read it as **“query slash x, close the current quoted value, union-select one-two-three, then comment out the rest.”** Here `1,2,3` are placeholder values for three result columns, and `-- -` begins a SQL comment in the lab's database dialect. The application displays values from the injected query, confirming that database input is being interpreted as SQL. In the lab this can expose stored chatbot interactions. In secure code, use parameterized SQL so an ID is always treated as data, and separately check that the authenticated user owns the requested record.
+
+**IDOR and SQL injection are different:** IDOR is a missing authorization check for a valid object reference. SQL injection is a failure to separate data from executable query syntax. One endpoint may have both kinds of risk, so test and fix them independently.
+
+### Plugin: authorization must not depend on the model
+
+The chatbot exposes functions such as checking an order or summarizing a conversation. A plugin that accepts both a conversation ID and a user ID must not trust the LLM to choose the user ID. If that value comes from model-generated text, prompt injection may influence it. The plugin can then act as a **confused deputy**: a component with legitimate database authority is tricked into using it on the wrong user's behalf.
+
+The stronger design is to derive the user's identity from the server's authenticated session, pass that trusted identity into the plugin, and perform the conversation-ownership check in the server/plugin/data-access layer. Treat model output as untrusted input. A chatbot refusal is useful behavior, but it is not an authorization boundary.
+
+### HTB lab command patterns and handling credentials
+
+HTB's enumeration example uses `seq` to generate candidate IDs and `ffuf` to substitute each one for `FUZZ`. A generic version is shown below; use only the active authorized lab host and your own session cookie. **Never put a real cookie in notes, a committed notebook, a screenshot, or a command history that may be shared.**
+
+```bash
+seq 1 100 | ffuf -u 'http://<SERVER_IP>:<PORT>/query/FUZZ' -w - -mc 200 \
+  -b 'session=<YOUR_SESSION_COOKIE>'
+```
+
+The SQL tests shown by the course are likewise scoped to the lab endpoint. A quote that produces a database error is an indicator to investigate, not proof by itself; confirm only within the authorized environment and stop when the intended learning objective is met.
+
+### Mitigations and COAE recall
+
+- Enforce object-level authorization for every request, including requests made through plugins. Derive identity from the authenticated server context, not from a user-controlled or model-generated parameter.
+- Use parameterized queries, validate types and ranges, and return safe errors that do not expose database details.
+- Apply least privilege to plugins and tools. Give each integration only the records and actions it needs; review its origin, code, dependencies, and necessity.
+- Treat user input and model output as untrusted at each processing boundary. Validate tool arguments and results, constrain side effects, and require human approval for sensitive actions when appropriate.
+- Use defense in depth: access controls, sanitization, rate limits, monitoring, logging with care, and sandboxing. Logging itself must not expose conversation contents or secrets to unauthorized readers.
+
+For an exam scenario, map the path from user to web route or LLM to plugin to database. Ask where the ID came from, which identity the system trusts, whether the SQL query treats input as data, and whether object ownership is checked at the final data access. Name both the weakness and a control at the layer where it belongs.
+
+**Notebook decision:** No new Python implementation is needed here. The hands-on portion is an authenticated web application lab using the browser and `ffuf`; the study notes keep copyable lab patterns with placeholders and do not store session credentials.
