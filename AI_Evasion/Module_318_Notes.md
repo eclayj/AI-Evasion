@@ -431,3 +431,56 @@ The page sketches a black-box workflow: build a candidate vocabulary offline, es
 - UCB combines average reward with an uncertainty bonus `sqrt(c ln(t)/n_w)`. Test every untried word explicitly before using the formula.
 - `O(log T)` regret relies on stationary, independent, bounded rewards; message- and combination-dependent word effects weaken those assumptions.
 - **Notebook decision:** this page presents a strategy but no runnable code. Keep the Module 318 notebook's current white-box implementation separate; do not claim that its access to `feature_log_prob_` is black-box. A black-box implementation belongs in a later subsection if HTB introduces runnable query code and a concrete query contract.
+
+## Section 7 of 12 — Black-Box Core Components
+
+### What this subsection prepares
+
+Section 6 introduced the query-only threat model and UCB search. This subsection builds the reusable inputs for that search: a candidate vocabulary drawn from legitimate training messages, a small curated supplement, a query-budget tracker, and a 40/40/20 planning split. It does **not** yet query a hidden classifier or select attack words from model responses; those steps belong to later material.
+
+### Count candidate words from ham messages
+
+For a candidate word `w`, the notebook's frequency is:
+
+\[
+\operatorname{freq}(w)=\sum_{m\in H}\operatorname{count}(w,m),
+\]
+
+where `H` is the sampled set of ham messages and `count(w,m)` is how many times `w` appears in message `m`. Read it aloud as **“frequency of w equals the sum, over ham messages m, of the number of times w occurs in m.”** This counts token occurrences, not the number of distinct messages containing the token. Repeating a word twice in one message adds two.
+
+The code uses the first 500 ham training messages, splits each on whitespace, and keeps tokens whose lengths are 3 through 9 characters. For instance, `hi` is removed, while `thanks` is kept. It then selects up to 100 tokens with frequency **greater than** five. That strict `>` means a word must occur at least six times; a parameter named `min_freq=5` can otherwise be misread as “five or more.” Candidate ranking is descending frequency, with alphabetical ordering to break ties reproducibly.
+
+The sample is taken in existing row order rather than randomly. That is a simple course implementation, but it can make the vocabulary sensitive to dataset ordering. A production or research experiment would usually sample reproducibly or use a separate permitted corpus, normalize/tokenize consistently with the model, and examine document frequency as well as raw counts. Most importantly, this vocabulary-building step assumes access to legitimate example text. A strictly query-only attacker with no such corpus must obtain candidates from another allowed source.
+
+### Curated terms and final ordering
+
+The course merges frequent ham tokens with a small hand-picked conversational list using a set union. A set union removes duplicates; sorting then makes output deterministic. Curated candidates absent from the ham sample have frequency zero, so the final helper places them after frequency-backed words and orders ties lexicographically. The curated list hedges against a small sample missing useful everyday language; it does not establish that those words help the hidden target. Their usefulness must be measured with queries.
+
+### Query budget arithmetic
+
+The subsection initializes `B=1000` allowed model queries and `q=0` queries used. It reserves 40% for exploration, 40% for exploitation, and the remainder for combinations:
+
+\[
+B_{\text{explore}}=\lfloor0.4B\rfloor,\quad
+B_{\text{exploit}}=\lfloor0.4B\rfloor,\quad
+B_{\text{combine}}=B-B_{\text{explore}}-B_{\text{exploit}}.
+\]
+
+Read this as **“exploration budget equals the floor of 0.4 times total budget; exploitation budget is the same; combination budget is total budget minus those first two.”** The floor symbol means round down to an integer. With `B=1000`, the allocations are 400, 400, and 200; they sum to 1000. Putting the remainder in the last phase also makes the total exact for budgets that do not divide evenly.
+
+The ratio is a planning heuristic, not a mathematical optimum. The query log is initialized for later measurements; no budget is consumed merely by creating it. Any real oracle call should be checked against the remaining budget before submission and counted exactly once afterward. Failed, repeated, or batched requests also need a clearly defined accounting rule matching the target service.
+
+### Why the existing notebook variables need care
+
+The baseline notebook's `X_train` is a sparse numeric count matrix after vectorization. Word mining needs the original message strings, so Section 7 uses `train_text` with the aligned `y_train` labels. This distinction matters: splitting the sparse matrix yields feature-column numbers, not the original tokens. The held-out spam strings are copied into a separate list before shuffling, so this setup does not reorder the earlier notebook's `spam_test_text` series.
+
+### COAE quick recall
+
+- Candidate mining counts tokens from ham text; in this implementation it is **token frequency**, so repeats count multiple times.
+- `len(w)>2 and len(w)<10` keeps lengths 3–9. `count > min_freq` with `min_freq=5` means six or more.
+- The top-100 cap applies before merging curated words; the final list can exceed 100. Set union removes duplicates, and deterministic tie-breaking supports reproducibility.
+- Use raw training text (`train_text`) for token mining. `X_train` is already a sparse feature matrix and no longer contains directly readable messages.
+- For a 1,000-query budget, the course's 40/40/20 split gives 400 exploration, 400 exploitation, and 200 combination queries. This is a heuristic; the remainder rule keeps totals exact.
+- Vocabulary construction and budget initialization do not themselves call the black-box model. Section 7 is setup, not attack execution.
+- The training-text vocabulary assumes a legitimate corpus is available. A query-only adversary without one needs another source; candidate selection still does not prove target effectiveness.
+- The [GoodWords baseline notebook](GoodWords_Baseline_Study.ipynb) adds this setup with visible alignment checks, deterministic shuffling, and explanations. It does not reuse white-box scores to rank these black-box candidates.
